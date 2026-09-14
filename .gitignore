@@ -1,0 +1,7 @@
+*.zip
+*.sha256
+*.tmp
+*.bak
+.DS_Store
+.idea/
+.vscode/

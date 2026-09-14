@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<model>
+    <mount>//OPNsense/xray/general</mount>
+    <description>Xray General Settings</description>
+    <version>1.0.0</version>
+    <items>
+        <enabled type="BooleanField">
+            <Default>0</Default>
+            <Required>N</Required>
+        </enabled>
+        <watchdog_enabled type="BooleanField">
+            <Default>0</Default>
+            <Required>N</Required>
+        </watchdog_enabled>
+    </items>
+</model>

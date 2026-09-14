@@ -1,0 +1,127 @@
+<?xml version="1.0"?>
+<model>
+    <mount>//OPNsense/xray/instances</mount>
+    <description>Xray Instance Settings</description>
+    <version>2.5.0</version>
+    <items>
+        <instance type="ArrayField">
+            <enabled type="BooleanField">
+                <Default>1</Default>
+            </enabled>
+            <name type="TextField">
+                <Default>default</Default>
+                <Required>N</Required>
+            </name>
+            <server type="TextField"><Required>Y</Required></server>
+            <port type="PortField"><Default>443</Default><Required>Y</Required></port>
+            <vless_uuid type="TextField"><Required>Y</Required><Mask>/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/</Mask></vless_uuid>
+            <vless_flow type="OptionField">
+                <Default></Default>
+                <Required>N</Required>
+                <OptionValues>
+                    <xtls-rprx-vision>xtls-rprx-vision</xtls-rprx-vision>
+                    <xtls-rprx-vision-udp443>xtls-rprx-vision-udp443</xtls-rprx-vision-udp443>
+                </OptionValues>
+            </vless_flow>
+            <transport type="OptionField">
+                <Default>xhttp</Default>
+                <OptionValues>
+                    <raw>raw</raw>
+                    <xhttp>xhttp</xhttp>
+                    <grpc>grpc</grpc>
+                </OptionValues>
+            </transport>
+            <xhttp_mode type="OptionField"><Default>auto</Default><OptionValues><auto>auto</auto><stream-one>stream-one</stream-one><stream-up>stream-up</stream-up><packet-up>packet-up</packet-up></OptionValues></xhttp_mode>
+            <xhttp_path type="TextField"><Required>Y</Required><Default>/</Default></xhttp_path>
+            <xhttp_host type="TextField"><Required>N</Required><Default></Default></xhttp_host>
+            <xhttp_padding_enabled type="BooleanField"><Default>0</Default></xhttp_padding_enabled>
+            <xhttp_padding_bytes type="TextField">
+                <Default>100-1000</Default>
+                <Required>N</Required>
+                <Mask>/^[1-9][0-9]{0,7}(?:-[1-9][0-9]{0,7})?$/</Mask>
+                <ValidationMessage>Use a positive byte count or range, for example 100-1000.</ValidationMessage>
+            </xhttp_padding_bytes>
+            <xhttp_padding_obfs type="BooleanField"><Default>1</Default></xhttp_padding_obfs>
+            <xhttp_padding_placement type="OptionField">
+                <Default></Default>
+                <Required>N</Required>
+                <OptionValues>
+                    <header>header</header>
+                    <cookie>cookie</cookie>
+                    <queryInHeader>queryInHeader</queryInHeader>
+                    <query>query</query>
+                </OptionValues>
+            </xhttp_padding_placement>
+            <xhttp_padding_method type="OptionField">
+                <Default></Default>
+                <Required>N</Required>
+                <OptionValues><tokenish>tokenish</tokenish><repeat-x>repeat-x</repeat-x></OptionValues>
+            </xhttp_padding_method>
+            <xhttp_uplink_method type="OptionField">
+                <Default></Default>
+                <Required>N</Required>
+                <OptionValues><POST>POST</POST><GET>GET</GET></OptionValues>
+            </xhttp_uplink_method>
+            <xhttp_session_placement type="OptionField">
+                <Default></Default>
+                <Required>N</Required>
+                <OptionValues><path>path</path><header>header</header><cookie>cookie</cookie><query>query</query></OptionValues>
+            </xhttp_session_placement>
+            <xhttp_seq_placement type="OptionField">
+                <Default></Default>
+                <Required>N</Required>
+                <OptionValues><path>path</path><header>header</header><cookie>cookie</cookie><query>query</query></OptionValues>
+            </xhttp_seq_placement>
+            <grpc_service_name type="TextField"><Default></Default><Required>N</Required></grpc_service_name>
+            <grpc_authority type="TextField"><Default></Default><Required>N</Required></grpc_authority>
+            <grpc_multi_mode type="BooleanField"><Default>0</Default></grpc_multi_mode>
+            <security type="OptionField"><Default>reality</Default><OptionValues><reality>reality</reality></OptionValues></security>
+            <reality_sni type="TextField"><Required>Y</Required></reality_sni>
+            <reality_public_key type="TextField"><Required>Y</Required><Mask>/^[A-Za-z0-9_-]{43,44}$/</Mask></reality_public_key>
+            <reality_short_id type="TextField"><Required>N</Required><Mask>/^(?:[0-9a-fA-F]{2}){0,8}$/</Mask></reality_short_id>
+            <reality_spider_x type="TextField"><Required>N</Required><Default></Default></reality_spider_x>
+            <fingerprint type="OptionField"><Default>chrome</Default><OptionValues><chrome>chrome</chrome><firefox>firefox</firefox><safari>safari</safari><edge>edge</edge><ios>ios</ios><android>android</android><qq>qq</qq><random>random</random><randomized>randomized</randomized></OptionValues></fingerprint>
+            <socks5_listen type="TextField">
+                <Default>127.0.0.1</Default>
+                <Required>Y</Required>
+                <Mask>/^127\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)$/</Mask>
+                <ValidationMessage>SOCKS5 must listen on an IPv4 loopback address (127.0.0.0/8).</ValidationMessage>
+            </socks5_listen>
+            <socks5_port type="PortField">
+                <Default>10808</Default>
+                <Required>Y</Required>
+            </socks5_port>
+            <tun_interface type="TextField">
+                <Default>tun0</Default>
+                <Required>Y</Required>
+                <Mask>/^tun(?:0|[1-9][0-9]{0,2})$/</Mask>
+                <ValidationMessage>HEV FreeBSD TUN interface must be tunN (for example tun0 or tun10).</ValidationMessage>
+            </tun_interface>
+            <tun_address type="TextField">
+                <Default>169.254.100.1/32</Default>
+                <Required>Y</Required>
+                <Mask>/^((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)\/32$/</Mask>
+                <ValidationMessage>HEV on FreeBSD configures IPv4 as /32; use for example 169.254.100.1/32.</ValidationMessage>
+            </tun_address>
+            <mtu type="IntegerField">
+                <Default>1500</Default>
+                <MinimumValue>576</MinimumValue>
+                <MaximumValue>9000</MaximumValue>
+                <Required>Y</Required>
+            </mtu>
+            <gateway_health_sync type="BooleanField">
+                <Default>0</Default>
+            </gateway_health_sync>
+            <loglevel type="OptionField">
+                <Default>warning</Default>
+                <OptionValues>
+                    <debug>debug</debug>
+                    <info>info</info>
+                    <warning>warning</warning>
+                    <error>error</error>
+                    <none>none</none>
+                </OptionValues>
+            </loglevel>
+        </instance>
+    </items>
+</model>

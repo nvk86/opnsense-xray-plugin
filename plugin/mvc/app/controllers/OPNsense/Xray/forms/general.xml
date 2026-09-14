@@ -1,0 +1,14 @@
+<form>
+    <field>
+        <id>general.enabled</id>
+        <label>Enable Xray</label>
+        <type>checkbox</type>
+        <help>Enable Xray instances using a loopback SOCKS5 inbound plus HevSocks5Tunnel-managed FreeBSD tun(4).</help>
+    </field>
+    <field>
+        <id>general.watchdog_enabled</id>
+        <label>Enable Watchdog</label>
+        <type>checkbox</type>
+        <help>Check each enabled Xray + HEV runtime chain and its TUN interface every minute and restart an unhealthy instance.</help>
+    </field>
+</form>

@@ -1,0 +1,23 @@
+#!/bin/sh
+
+LOG="/var/log/xray-service.log"
+SERVICE_CONTROL="/usr/local/opnsense/scripts/Xray/xray-service-control.php"
+XRAY_BIN="/usr/local/libexec/xray/xray"
+HEV_BIN="/usr/local/libexec/xray/hev-socks5-tunnel"
+
+exec >> "$LOG" 2>&1
+echo ""
+echo "=== Xray syshook start: $(date) ==="
+
+[ -x "$XRAY_BIN" ] || { echo "xray binary not found, skip"; exit 0; }
+[ -x "$HEV_BIN" ] || { echo "HEV binary not found, skip"; exit 0; }
+[ -x "$SERVICE_CONTROL" ] || { echo "service-control not found, skip"; exit 0; }
+
+ENABLED=$(/usr/local/bin/php -r 'set_include_path("/usr/local/etc/inc" . PATH_SEPARATOR . get_include_path()); require_once("config.inc"); $cfg=OPNsense\Core\Config::getInstance()->object(); echo (string)($cfg->OPNsense->xray->general->enabled ?? "0");' 2>/dev/null)
+[ "$ENABLED" = "1" ] || { echo "xray disabled, exit"; exit 0; }
+
+echo "starting Xray + HEV through central service-control..."
+/usr/local/bin/php "$SERVICE_CONTROL" start
+RC=$?
+echo "=== done rc=$RC: $(date) ==="
+exit $RC

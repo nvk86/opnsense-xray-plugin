@@ -1,0 +1,9 @@
+<menu>
+    <VPN>
+        <Xray cssClass="fa fa-rocket fa-fw">
+            <General order="10" url="/ui/xray/general"/>
+            <Clients order="20" url="/ui/xray/clients"/>
+            <Diagnostics order="30" url="/ui/xray/diagnostics"/>
+        </Xray>
+    </VPN>
+</menu>

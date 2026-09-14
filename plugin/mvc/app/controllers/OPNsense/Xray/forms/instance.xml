@@ -1,0 +1,40 @@
+<form>
+  <field><type>header</type><label>Client</label></field>
+  <field><id>instance.enabled</id><label>Enabled</label><type>checkbox</type></field>
+  <field><id>instance.name</id><label>Name</label><type>text</type><hint>e.g. Kazakhstan</hint></field>
+  <field><type>header</type><label>VLESS</label></field>
+  <field><id>instance.server</id><label>Server</label><type>text</type><hint>IPv4, IPv6 or hostname</hint></field>
+  <field><id>instance.port</id><label>Port</label><type>text</type><hint>443</hint></field>
+  <field><id>instance.vless_uuid</id><label>UUID</label><type>text</type></field>
+  <field><id>instance.vless_flow</id><label>Flow</label><type>dropdown</type><help>Leave empty unless the server requires a VLESS flow such as xtls-rprx-vision.</help></field>
+  <field><type>header</type><label>Transport</label></field>
+  <field><id>instance.transport</id><label>Network</label><type>dropdown</type></field>
+  <field><id>instance.xhttp_mode</id><label>XHTTP Mode</label><type>dropdown</type></field>
+  <field><id>instance.xhttp_path</id><label>Path</label><type>text</type><hint>/random-path</hint></field>
+  <field><id>instance.xhttp_host</id><label>XHTTP Host</label><type>text</type><hint>optional</hint></field>
+  <field><id>instance.xhttp_padding_enabled</id><label>Enable XHTTP Padding</label><type>checkbox</type><help>Add XHTTP padding. The remote Xray server must use compatible XHTTP settings.</help></field>
+  <field><id>instance.xhttp_padding_bytes</id><label>Padding Bytes</label><type>text</type><hint>100-1000</hint></field>
+  <field><id>instance.xhttp_padding_obfs</id><label>Padding Obfuscation Mode</label><type>checkbox</type></field>
+  <field><id>instance.xhttp_padding_placement</id><label>Padding Placement</label><type>dropdown</type><help>header or cookie are the preferred choices for bidirectional padding experiments.</help></field>
+  <field><id>instance.xhttp_padding_method</id><label>Padding Method</label><type>dropdown</type></field>
+  <field><id>instance.xhttp_uplink_method</id><label>Uplink HTTP Method</label><type>dropdown</type><help>GET is valid only with packet-up mode.</help></field>
+  <field><id>instance.xhttp_session_placement</id><label>Session ID Placement</label><type>dropdown</type></field>
+  <field><id>instance.xhttp_seq_placement</id><label>Sequence Placement</label><type>dropdown</type></field>
+  <field><id>instance.grpc_service_name</id><label>gRPC Service Name</label><type>text</type><hint>optional</hint></field>
+  <field><id>instance.grpc_authority</id><label>gRPC Authority</label><type>text</type><hint>optional</hint></field>
+  <field><id>instance.grpc_multi_mode</id><label>gRPC Multi Mode</label><type>checkbox</type></field>
+  <field><type>header</type><label>REALITY</label></field>
+  <field><id>instance.security</id><label>Security</label><type>dropdown</type></field>
+  <field><id>instance.reality_sni</id><label>SNI</label><type>text</type></field>
+  <field><id>instance.reality_public_key</id><label>Public Key</label><type>text</type></field>
+  <field><id>instance.reality_short_id</id><label>Short ID</label><type>text</type><hint>0-16 hexadecimal characters</hint></field>
+  <field><id>instance.reality_spider_x</id><label>SpiderX</label><type>text</type><hint>optional, e.g. /</hint></field>
+  <field><id>instance.fingerprint</id><label>Fingerprint</label><type>dropdown</type></field>
+  <field><id>instance.socks5_listen</id><label>SOCKS5 Listen Address</label><type>text</type><help>Internal loopback listener between HEV and Xray.</help></field>
+  <field><id>instance.socks5_port</id><label>SOCKS5 Port</label><type>text</type></field>
+  <field><id>instance.tun_interface</id><label>TUN Interface</label><type>text</type></field>
+  <field><id>instance.tun_address</id><label>TUN Address</label><type>text</type></field>
+  <field><id>instance.mtu</id><label>MTU</label><type>text</type></field>
+  <field><id>instance.gateway_health_sync</id><label>Gateway Health Sync</label><type>checkbox</type><help>Mirror end-to-end Xray proxy health into the native OPNsense dynamic gateway Force Down state so Gateway Groups can fail over. Requires this TUN to be assigned and Dynamic Gateway Policy enabled.</help></field>
+  <field><id>instance.loglevel</id><label>Xray Log Level</label><type>dropdown</type></field>
+</form>
