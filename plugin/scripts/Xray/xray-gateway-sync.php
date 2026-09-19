@@ -184,6 +184,104 @@ function gs_reconfigure_routing(): array
     ];
 }
 
+function gs_synthetic_gateway_for_instance($inst): ?string
+{
+    $cidr = trim((string)($inst->tun_address ?? ''));
+    $parts = explode('/', $cidr, 2);
+    if (count($parts) !== 2 || $parts[1] !== '32'
+        || filter_var($parts[0], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+        return null;
+    }
+
+    $value = ip2long($parts[0]);
+    if ($value === false) {
+        return null;
+    }
+    if ($value < 0) {
+        $value += 4294967296;
+    }
+
+    // The plugin allocator uses link-local x.x.x.1/32 addresses.  A synthetic
+    // adjacent address is used only as OPNsense/PF's static far-gateway token;
+    // no peer is expected to answer on it.
+    if (($value & 0xff) >= 254) {
+        return null;
+    }
+    return long2ip($value + 1);
+}
+
+function gs_gateway_base_name(array $assignment, string $tun): string
+{
+    $stem = strtoupper(trim((string)($assignment['descr'] ?? '')));
+    if ($stem === '') {
+        $stem = strtoupper(trim((string)($assignment['key'] ?? '')));
+    }
+    if ($stem === '') {
+        $stem = strtoupper($tun);
+    }
+    $stem = preg_replace('/[^A-Z0-9_-]+/', '_', $stem);
+    $stem = trim((string)$stem, '_-');
+    if ($stem === '') {
+        $stem = 'XRAY_' . strtoupper($tun);
+    } elseif (strpos($stem, 'XRAY_') !== 0) {
+        $stem = 'XRAY_' . $stem;
+    }
+    if (substr($stem, -3) !== '_GW') {
+        $stem .= '_GW';
+    }
+    if (strlen($stem) > 32) {
+        $stem = substr($stem, 0, 29) . '_GW';
+    }
+    return $stem;
+}
+
+function gs_gateway_name_exists(OPNsense\Routing\Gateways $model, string $name): bool
+{
+    foreach ($model->gatewayIterator() as $row) {
+        if ((string)($row['name'] ?? '') === $name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function gs_unique_gateway_name(OPNsense\Routing\Gateways $model, string $base): ?string
+{
+    if (!gs_gateway_name_exists($model, $base)) {
+        return $base;
+    }
+    for ($i = 2; $i <= 99; $i++) {
+        $suffix = '_' . $i;
+        $candidate = substr($base, 0, 32 - strlen($suffix)) . $suffix;
+        if (!gs_gateway_name_exists($model, $candidate)) {
+            return $candidate;
+        }
+    }
+    return null;
+}
+
+function gs_find_gateway_by_address(OPNsense\Routing\Gateways $model, string $interface, string $address): ?array
+{
+    foreach ($model->gatewayIterator() as $row) {
+        if (($row['interface'] ?? '') !== $interface || ($row['ipprotocol'] ?? 'inet') !== 'inet') {
+            continue;
+        }
+        if (trim((string)($row['gateway'] ?? '')) === $address) {
+            return $row;
+        }
+    }
+    return null;
+}
+
+function gs_gateway_is_expected_far(array $row, string $interface, string $address): bool
+{
+    return ($row['interface'] ?? '') === $interface
+        && ($row['ipprotocol'] ?? 'inet') === 'inet'
+        && trim((string)($row['gateway'] ?? '')) === $address
+        && !empty($row['fargw'])
+        && (string)$row['fargw'] !== '0';
+}
+
 function gs_sync_one(string $uuid, string $healthState): array
 {
     $cfgHandle = OPNsense\Core\Config::getInstance();
@@ -201,100 +299,148 @@ function gs_sync_one(string $uuid, string $healthState): array
         }
         return ['result'=>'ok','instance'=>$uuid,'enabled'=>false,'changed'=>false,'message'=>'Gateway health sync disabled'];
     }
+
     $tun = trim((string)($inst->tun_interface ?? ''));
     $assignment = gs_assignment_for_tun($cfg, $tun);
     if (empty($assignment)) {
         if (isset($registry[$uuid]) && is_array($registry[$uuid])) {
             return gs_release_record($uuid, $registry[$uuid]);
         }
-        return ['result' => 'skipped', 'instance' => $uuid, 'enabled' => $syncEnabled, 'message' => 'TUN is not assigned in OPNsense'];
+        return ['result'=>'skipped','instance'=>$uuid,'enabled'=>true,'message'=>'TUN is not assigned in OPNsense'];
     }
     if (!$assignment['enabled']) {
         if (isset($registry[$uuid]) && is_array($registry[$uuid])) {
             return gs_release_record($uuid, $registry[$uuid]);
         }
-        return ['result' => 'skipped', 'instance' => $uuid, 'enabled' => $syncEnabled, 'assignment' => $assignment['key'], 'message' => 'OPNsense interface assignment is disabled'];
-    }
-    if (!$assignment['gateway_interface']) {
-        if (isset($registry[$uuid]) && is_array($registry[$uuid])) {
-            return gs_release_record($uuid, $registry[$uuid]);
-        }
-        return ['result' => 'skipped', 'instance' => $uuid, 'enabled' => $syncEnabled, 'assignment' => $assignment['key'], 'message' => 'Dynamic Gateway Policy is disabled'];
+        return ['result'=>'skipped','instance'=>$uuid,'enabled'=>true,'assignment'=>$assignment['key'],'message'=>'OPNsense interface assignment is disabled'];
     }
 
-    // Unknown/stale health is intentionally non-destructive.  A gateway is
+    // Static Far Gateway mode deliberately replaces the 1.0.0 dynamic-gateway
+    // integration.  Leaving Dynamic Gateway Policy enabled can materialize a
+    // second addressless gateway which OPNsense omits from gateway-group PF
+    // pools, so refuse to manage routing until the assignment is unambiguous.
+    if (!empty($assignment['gateway_interface'])) {
+        return [
+            'result'=>'skipped','instance'=>$uuid,'enabled'=>true,'assignment'=>$assignment['key'],
+            'message'=>'Disable Dynamic Gateway Policy on the assigned Xray interface; Gateway Health Sync uses a static Far Gateway in 1.0.1+',
+        ];
+    }
+
+    $gatewayAddress = gs_synthetic_gateway_for_instance($inst);
+    if ($gatewayAddress === null) {
+        return [
+            'result'=>'failed','instance'=>$uuid,'enabled'=>true,'assignment'=>$assignment['key'],
+            'message'=>'Cannot derive a synthetic Far Gateway from the configured TUN /32 address',
+        ];
+    }
+
+    // Unknown/stale health is intentionally non-destructive. A gateway is
     // forced down only after the health producer has promoted repeated probe
     // failures to an explicit offline state.
     if ($healthState === 'unknown' || $healthState === 'stale') {
         return [
-            'result' => 'skipped', 'instance' => $uuid, 'enabled' => $syncEnabled,
-            'assignment' => $assignment['key'], 'health_state' => $healthState,
-            'changed' => false, 'message' => 'Health is not conclusive; native gateway state preserved',
+            'result'=>'skipped','instance'=>$uuid,'enabled'=>true,
+            'assignment'=>$assignment['key'],'gateway_address'=>$gatewayAddress,
+            'health_state'=>$healthState,'changed'=>false,
+            'message'=>'Health is not conclusive; native gateway state preserved',
         ];
     }
 
     $gwModel = new OPNsense\Routing\Gateways();
-    $persisted = null;
-    foreach ($gwModel->gatewayIterator() as $row) {
-        if (($row['interface'] ?? '') !== $assignment['key'] || ($row['ipprotocol'] ?? 'inet') !== 'inet') {
-            continue;
-        }
-        $gatewayValue = trim((string)($row['gateway'] ?? ''));
-        if ($gatewayValue === '' || $gatewayValue === 'dynamic') {
-            $persisted = $row;
-            break;
+    $preferredName = '';
+
+    // 1.0.0 could own a persisted dynamic gateway. Once Dynamic Gateway Policy
+    // has been disabled, release that legacy ownership first. Plugin-created
+    // dynamic gateways are deleted; pre-existing ones merely regain their
+    // original Force Down state. Preserve the old name when it becomes free so
+    // existing gateway-group references continue to resolve.
+    if (isset($registry[$uuid]) && is_array($registry[$uuid])) {
+        $record = $registry[$uuid];
+        $tracked = gs_find_persisted_gateway($gwModel, $record);
+        if ($tracked === null || !gs_gateway_is_expected_far($tracked, $assignment['key'], $gatewayAddress)) {
+            $preferredName = trim((string)($record['name'] ?? ''));
+            $released = gs_release_record($uuid, $record);
+            if (($released['result'] ?? '') !== 'ok') {
+                return [
+                    'result'=>'warning','instance'=>$uuid,'enabled'=>true,
+                    'assignment'=>$assignment['key'],'gateway_address'=>$gatewayAddress,
+                    'migration'=>$released,
+                    'message'=>'Legacy gateway ownership could not be released safely',
+                ];
+            }
+            $registry = gs_registry_read();
+            $gwModel = new OPNsense\Routing\Gateways();
         }
     }
 
-    $candidate = null;
-    foreach ($gwModel->gatewaysIndexedByName(true, true, true) as $name => $row) {
-        if (($row['interface'] ?? '') === $assignment['key'] && ($row['ipprotocol'] ?? 'inet') === 'inet') {
-            $row['name'] = $name;
-            $candidate = $row;
-            if (!empty($row['gateway_interface'])) {
-                break;
-            }
-        }
+    $persisted = gs_find_gateway_by_address($gwModel, $assignment['key'], $gatewayAddress);
+    if ($persisted !== null && (empty($persisted['fargw']) || (string)$persisted['fargw'] === '0')) {
+        return [
+            'result'=>'skipped','instance'=>$uuid,'enabled'=>true,
+            'assignment'=>$assignment['key'],'gateway'=>(string)($persisted['name'] ?? ''),
+            'gateway_address'=>$gatewayAddress,
+            'message'=>'The matching native gateway exists but Far Gateway is disabled',
+        ];
+    }
+    if ($persisted !== null && (empty($persisted['monitor_disable']) || (string)$persisted['monitor_disable'] === '0')) {
+        return [
+            'result'=>'skipped','instance'=>$uuid,'enabled'=>true,
+            'assignment'=>$assignment['key'],'gateway'=>(string)($persisted['name'] ?? ''),
+            'gateway_address'=>$gatewayAddress,
+            'message'=>'Disable native gateway monitoring before enabling Gateway Health Sync',
+        ];
     }
 
     $desiredForceDown = $healthState !== 'online' ? '1' : '0';
 
     if ($persisted === null) {
-        if ($candidate === null || empty($candidate['name'])) {
-            return ['result' => 'skipped', 'instance' => $uuid, 'enabled' => true, 'assignment' => $assignment['key'], 'message' => 'Native dynamic gateway could not be resolved'];
+        $gatewayName = '';
+        if ($preferredName !== '' && !gs_gateway_name_exists($gwModel, $preferredName)) {
+            $gatewayName = $preferredName;
         }
-        $gatewayName = (string)$candidate['name'];
+        if ($gatewayName === '') {
+            $gatewayName = gs_unique_gateway_name($gwModel, gs_gateway_base_name($assignment, $tun)) ?? '';
+        }
+        if ($gatewayName === '') {
+            return [
+                'result'=>'failed','instance'=>$uuid,'enabled'=>true,'assignment'=>$assignment['key'],
+                'gateway_address'=>$gatewayAddress,'message'=>'Could not allocate a unique native gateway name',
+            ];
+        }
+
         $fields = [
-            'disabled' => '0',
-            'descr' => 'Xray health-managed gateway for ' . ($assignment['descr'] !== '' ? $assignment['descr'] : $assignment['key']),
-            'defaultgw' => '0',
-            'ipprotocol' => 'inet',
-            'interface' => $assignment['key'],
-            'gateway' => 'dynamic',
-            'monitor_disable' => '1',
-            'monitor_noroute' => '0',
-            'name' => $gatewayName,
-            'weight' => (string)($candidate['weight'] ?? '1'),
-            'priority' => (string)($candidate['priority'] ?? '254'),
-            'force_down' => $desiredForceDown,
+            'disabled'=>'0',
+            'descr'=>'Xray health-managed Far Gateway for ' . ($assignment['descr'] !== '' ? $assignment['descr'] : $assignment['key']),
+            'defaultgw'=>'0',
+            'ipprotocol'=>'inet',
+            'interface'=>$assignment['key'],
+            'gateway'=>$gatewayAddress,
+            'fargw'=>'1',
+            'monitor_disable'=>'1',
+            'monitor_noroute'=>'0',
+            'name'=>$gatewayName,
+            'weight'=>'1',
+            'priority'=>'255',
+            'force_down'=>$desiredForceDown,
         ];
+
+        // Persist ownership before the config mutation so an interrupted create
+        // can be reconciled safely by name on the next run.
         $registry = gs_registry_read();
         $registry[$uuid] = [
-            'name'=>$gatewayName, 'interface'=>$assignment['key'], 'uuid'=>'',
-            'original_force_down'=>false, 'created'=>true, 'tracked_at'=>time(), 'alarm_pending'=>false,
+            'name'=>$gatewayName,'interface'=>$assignment['key'],'uuid'=>'',
+            'gateway_address'=>$gatewayAddress,'original_force_down'=>false,
+            'created'=>true,'tracked_at'=>time(),'alarm_pending'=>false,
         ];
         if (!gs_registry_write($registry)) {
             return ['result'=>'failed','instance'=>$uuid,'gateway'=>$gatewayName,'message'=>'Could not persist gateway sync ownership registry'];
         }
+
         $gwModel->createOrUpdateGateway($fields, null);
         $cfgHandle->save();
 
-        // createOrUpdateGateway() does not return the generated model UUID.
-        // Re-read the just-persisted gateway and bind the ownership record to
-        // its UUID immediately; name-only tracking is retained only for
-        // compatibility with older pre-release registry entries.
         $freshModel = new OPNsense\Routing\Gateways();
-        $createdRow = gs_find_persisted_gateway($freshModel, ['name' => $gatewayName, 'uuid' => '']);
+        $createdRow = gs_find_persisted_gateway($freshModel, ['name'=>$gatewayName,'uuid'=>'']);
         $createdUuid = (string)($createdRow['uuid'] ?? '');
         if ($createdUuid !== '') {
             $registry = gs_registry_read();
@@ -304,95 +450,100 @@ function gs_sync_one(string $uuid, string $healthState): array
             }
         }
 
-        $alarm = gs_alarm($gatewayName);
+        // Creating a gateway is structural routing state, so request a complete
+        // routing reconfigure rather than a status-only alarm.
+        $alarm = gs_reconfigure_routing();
         if (!$alarm['ok']) {
             $registry = gs_registry_read();
-            if (isset($registry[$uuid])) { $registry[$uuid]['alarm_pending'] = true; gs_registry_write($registry); }
+            if (isset($registry[$uuid])) {
+                $registry[$uuid]['alarm_pending'] = true;
+                gs_registry_write($registry);
+            }
         }
         return [
-            'result' => $alarm['ok'] ? 'ok' : 'warning',
-            'instance' => $uuid,
-            'enabled' => true,
-            'assignment' => $assignment['key'],
-            'gateway' => $gatewayName,
-            'health_state' => $healthState,
-            'force_down' => $desiredForceDown === '1',
-            'changed' => true,
-            'created' => true,
-            'alarm' => $alarm,
-            'message' => $alarm['ok'] ? 'Native dynamic gateway persisted and synchronized' : 'Gateway saved but routing alarm failed',
+            'result'=>$alarm['ok'] ? 'ok' : 'warning',
+            'instance'=>$uuid,'enabled'=>true,'assignment'=>$assignment['key'],
+            'gateway'=>$gatewayName,'gateway_address'=>$gatewayAddress,
+            'health_state'=>$healthState,'force_down'=>$desiredForceDown === '1',
+            'changed'=>true,'created'=>true,'alarm'=>$alarm,
+            'message'=>$alarm['ok'] ? 'Native Far Gateway created and synchronized' : 'Far Gateway saved but routing reconfiguration failed',
         ];
     }
 
-    $gatewayName = (string)($persisted['name'] ?? ($candidate['name'] ?? ''));
+    $gatewayName = (string)($persisted['name'] ?? '');
     $gatewayUuid = (string)($persisted['uuid'] ?? '');
+    $currentForceDown = !empty($persisted['force_down']) && (string)$persisted['force_down'] !== '0';
 
-    // Upgrade older ownership records which tracked plugin-created gateways by
-    // name only.  Once the OPNsense model exposes the persisted UUID, bind the
-    // record to it so future release/delete operations are identity-safe.
-    if ($gatewayUuid !== '' && isset($registry[$uuid]) && !empty($registry[$uuid]['created'])
-        && empty($registry[$uuid]['uuid'])) {
+    $registry = gs_registry_read();
+    if (!isset($registry[$uuid])) {
+        $registry[$uuid] = [
+            'name'=>$gatewayName,'interface'=>$assignment['key'],'uuid'=>$gatewayUuid,
+            'gateway_address'=>$gatewayAddress,'original_force_down'=>$currentForceDown,
+            'created'=>false,'tracked_at'=>time(),'alarm_pending'=>false,
+        ];
+        if (!gs_registry_write($registry)) {
+            return ['result'=>'failed','instance'=>$uuid,'gateway'=>$gatewayName,'message'=>'Could not persist gateway sync ownership registry'];
+        }
+    } elseif ($gatewayUuid !== '' && empty($registry[$uuid]['uuid'])) {
         $registry[$uuid]['uuid'] = $gatewayUuid;
+        $registry[$uuid]['gateway_address'] = $gatewayAddress;
         gs_registry_write($registry);
     }
 
-    $currentForceDown = !empty($persisted['force_down']) && (string)$persisted['force_down'] !== '0';
+    if ($gatewayUuid === '') {
+        return ['result'=>'skipped','instance'=>$uuid,'gateway'=>$gatewayName,'gateway_address'=>$gatewayAddress,'message'=>'Persisted Far Gateway has no UUID'];
+    }
+
     $desiredBool = $desiredForceDown === '1';
     if ($currentForceDown === $desiredBool) {
         $pending = isset($registry[$uuid]) && !empty($registry[$uuid]['alarm_pending']);
         $alarm = null;
         if ($pending && $gatewayName !== '') {
-            $alarm = gs_alarm($gatewayName);
+            $alarm = gs_reconfigure_routing();
             if ($alarm['ok']) {
                 $registry = gs_registry_read();
-                if (isset($registry[$uuid])) { $registry[$uuid]['alarm_pending'] = false; gs_registry_write($registry); }
+                if (isset($registry[$uuid])) {
+                    $registry[$uuid]['alarm_pending'] = false;
+                    gs_registry_write($registry);
+                }
             }
         }
         return [
-            'result' => ($alarm !== null && !$alarm['ok']) ? 'warning' : 'ok',
-            'instance' => $uuid, 'enabled' => $syncEnabled,
-            'assignment' => $assignment['key'], 'gateway' => $gatewayName,
-            'health_state' => $healthState, 'force_down' => $desiredBool,
-            'changed' => false, 'created' => false, 'alarm' => $alarm,
-            'message' => $pending ? (($alarm !== null && $alarm['ok']) ? 'Pending routing alarm retried successfully' : 'Routing alarm is still pending') : 'Native gateway state already synchronized',
+            'result'=>($alarm !== null && !$alarm['ok']) ? 'warning' : 'ok',
+            'instance'=>$uuid,'enabled'=>true,'assignment'=>$assignment['key'],
+            'gateway'=>$gatewayName,'gateway_address'=>$gatewayAddress,
+            'health_state'=>$healthState,'force_down'=>$desiredBool,
+            'changed'=>false,'created'=>!empty($registry[$uuid]['created']),'alarm'=>$alarm,
+            'message'=>$pending
+                ? (($alarm !== null && $alarm['ok']) ? 'Pending routing reconfiguration retried successfully' : 'Routing reconfiguration is still pending')
+                : 'Native Far Gateway state already synchronized',
         ];
     }
 
-    $registry = gs_registry_read();
-    if (!isset($registry[$uuid])) {
-        $registry[$uuid] = [
-            'name'=>$gatewayName, 'interface'=>$assignment['key'], 'uuid'=>$gatewayUuid,
-            'original_force_down'=>$currentForceDown, 'created'=>false, 'tracked_at'=>time(), 'alarm_pending'=>false,
-        ];
-        if (!gs_registry_write($registry)) {
-            return ['result'=>'failed','instance'=>$uuid,'gateway'=>$gatewayName,'message'=>'Could not persist gateway sync ownership registry'];
-        }
-    }
-    if ($gatewayUuid === '') {
-        return ['result' => 'skipped', 'instance' => $uuid, 'gateway' => $gatewayName, 'message' => 'Persisted gateway has no UUID'];
-    }
-    $gwModel->createOrUpdateGateway(['force_down' => $desiredForceDown], $gatewayUuid);
+    $gwModel->createOrUpdateGateway(['force_down'=>$desiredForceDown], $gatewayUuid);
     $cfgHandle->save();
     $alarm = gs_alarm($gatewayName);
     if (!$alarm['ok']) {
         $registry = gs_registry_read();
-        if (isset($registry[$uuid])) { $registry[$uuid]['alarm_pending'] = true; gs_registry_write($registry); }
+        if (isset($registry[$uuid])) {
+            $registry[$uuid]['alarm_pending'] = true;
+            gs_registry_write($registry);
+        }
     } else {
         $registry = gs_registry_read();
-        if (isset($registry[$uuid]) && !empty($registry[$uuid]['alarm_pending'])) { $registry[$uuid]['alarm_pending'] = false; gs_registry_write($registry); }
+        if (isset($registry[$uuid]) && !empty($registry[$uuid]['alarm_pending'])) {
+            $registry[$uuid]['alarm_pending'] = false;
+            gs_registry_write($registry);
+        }
     }
+
     return [
-        'result' => $alarm['ok'] ? 'ok' : 'warning',
-        'instance' => $uuid,
-        'enabled' => $syncEnabled,
-        'assignment' => $assignment['key'],
-        'gateway' => $gatewayName,
-        'health_state' => $healthState,
-        'force_down' => $desiredBool,
-        'changed' => true,
-        'created' => false,
-        'alarm' => $alarm,
-        'message' => $alarm['ok'] ? 'Native gateway Force Down synchronized' : 'Gateway saved but routing alarm failed',
+        'result'=>$alarm['ok'] ? 'ok' : 'warning',
+        'instance'=>$uuid,'enabled'=>true,'assignment'=>$assignment['key'],
+        'gateway'=>$gatewayName,'gateway_address'=>$gatewayAddress,
+        'health_state'=>$healthState,'force_down'=>$desiredBool,
+        'changed'=>true,'created'=>!empty($registry[$uuid]['created']),'alarm'=>$alarm,
+        'message'=>$alarm['ok'] ? 'Native Far Gateway Force Down synchronized' : 'Gateway saved but routing alarm failed',
     ];
 }
 
