@@ -32,7 +32,7 @@ jobs:
         run: php tests/import_parser_test.php
       - name: Release integrity
         run: |
-          test "$(cat VERSION)" = "1.1.0"
+          test "$(cat VERSION)" = "1.2.0"
           ! grep -RniE --exclude-dir=.git --exclude='ci.yml' \
             '1\.1\.0-(rc|beta)|1\.1\.1-dev|0\.2\.[0-9]+|TESTING\.ru|preserved lab configuration' .
           ! grep -RniE 'ws_path|ws_host|httpupgrade_path|httpupgrade_host' plugin
@@ -56,5 +56,7 @@ jobs:
           grep -Fq 'public function metricsAction()' plugin/mvc/app/controllers/OPNsense/Xray/Api/ServiceController.php
           grep -Fq 'text/plain; version=0.0.4' plugin/mvc/app/controllers/OPNsense/Xray/Api/ServiceController.php
           grep -Fq '<acl_xray_metrics>' plugin/mvc/app/models/OPNsense/Xray/ACL/ACL.xml
+          grep -Fq '<name>Xray: Prometheus metrics</name>' plugin/mvc/app/models/OPNsense/Xray/ACL/ACL.xml
+          grep -Fq 'opnsense_acl_cache.json' install.sh
           grep -Fq '<pattern>api/xray/service/metrics</pattern>' plugin/mvc/app/models/OPNsense/Xray/ACL/ACL.xml
           grep -Fq 'does not run `testconnect`' README.md
