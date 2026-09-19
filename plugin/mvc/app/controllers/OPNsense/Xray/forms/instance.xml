@@ -1,40 +1,40 @@
 <form>
   <field><type>header</type><label>Client</label></field>
-  <field><id>instance.enabled</id><label>Enabled</label><type>checkbox</type></field>
-  <field><id>instance.name</id><label>Name</label><type>text</type><hint>e.g. Kazakhstan</hint></field>
+  <field><id>instance.enabled</id><label>Enabled</label><type>checkbox</type><help>Enable this client. Apply starts it when the global Xray service is enabled; disabling it stops only this client.</help></field>
+  <field><id>instance.name</id><label>Name</label><type>text</type><hint>e.g. Kazakhstan</hint><help>Descriptive name shown in the Clients, Diagnostics and Log selectors.</help></field>
   <field><type>header</type><label>VLESS</label></field>
-  <field><id>instance.server</id><label>Server</label><type>text</type><hint>IPv4, IPv6 or hostname</hint></field>
-  <field><id>instance.port</id><label>Port</label><type>text</type><hint>443</hint></field>
-  <field><id>instance.vless_uuid</id><label>UUID</label><type>text</type></field>
+  <field><id>instance.server</id><label>Server</label><type>text</type><hint>IPv4, IPv6 or hostname</hint><help>Remote VLESS server address. Use the address or hostname from the server configuration or VLESS link.</help></field>
+  <field><id>instance.port</id><label>Port</label><type>text</type><hint>443</hint><help>Remote VLESS TCP port, usually 443 when REALITY is exposed on HTTPS-like traffic.</help></field>
+  <field><id>instance.vless_uuid</id><label>UUID</label><type>text</type><help>VLESS user UUID issued by the remote server. It must exactly match the server-side client entry.</help></field>
   <field><id>instance.vless_flow</id><label>Flow</label><type>dropdown</type><help>Leave empty unless the server requires a VLESS flow such as xtls-rprx-vision.</help></field>
   <field><type>header</type><label>Transport</label></field>
-  <field><id>instance.transport</id><label>Network</label><type>dropdown</type></field>
-  <field><id>instance.xhttp_mode</id><label>XHTTP Mode</label><type>dropdown</type></field>
-  <field><id>instance.xhttp_path</id><label>Path</label><type>text</type><hint>/random-path</hint></field>
-  <field><id>instance.xhttp_host</id><label>XHTTP Host</label><type>text</type><hint>optional</hint></field>
+  <field><id>instance.transport</id><label>Network</label><type>dropdown</type><help>VLESS transport used by the remote server: raw, XHTTP or gRPC. Transport-specific fields below are applied only to the selected mode.</help></field>
+  <field><id>instance.xhttp_mode</id><label>XHTTP Mode</label><type>dropdown</type><help>XHTTP transfer mode. It must be compatible with the remote Xray configuration; auto lets Xray select the normal behavior.</help></field>
+  <field><id>instance.xhttp_path</id><label>Path</label><type>text</type><hint>/random-path</hint><help>XHTTP request path. It must start with / and match the server-side XHTTP path.</help></field>
+  <field><id>instance.xhttp_host</id><label>XHTTP Host</label><type>text</type><hint>optional</hint><help>Optional HTTP Host value for XHTTP. Leave empty unless the remote server or reverse proxy explicitly requires it.</help></field>
   <field><id>instance.xhttp_padding_enabled</id><label>Enable XHTTP Padding</label><type>checkbox</type><help>Add XHTTP padding. The remote Xray server must use compatible XHTTP settings.</help></field>
-  <field><id>instance.xhttp_padding_bytes</id><label>Padding Bytes</label><type>text</type><hint>100-1000</hint></field>
-  <field><id>instance.xhttp_padding_obfs</id><label>Padding Obfuscation Mode</label><type>checkbox</type></field>
+  <field><id>instance.xhttp_padding_bytes</id><label>Padding Bytes</label><type>text</type><hint>100-1000</hint><help>Amount of XHTTP padding to add when padding is enabled. Accepts a single positive byte count or an inclusive range such as 100-1000.</help></field>
+  <field><id>instance.xhttp_padding_obfs</id><label>Padding Obfuscation Mode</label><type>checkbox</type><help>Enable Xray XHTTP padding obfuscation for the generated padding value. The server must use compatible XHTTP behavior.</help></field>
   <field><id>instance.xhttp_padding_placement</id><label>Padding Placement</label><type>dropdown</type><help>header or cookie are the preferred choices for bidirectional padding experiments.</help></field>
-  <field><id>instance.xhttp_padding_method</id><label>Padding Method</label><type>dropdown</type></field>
+  <field><id>instance.xhttp_padding_method</id><label>Padding Method</label><type>dropdown</type><help>Select how padding content is generated. Keep the default unless the remote XHTTP profile requires a specific method.</help></field>
   <field><id>instance.xhttp_uplink_method</id><label>Uplink HTTP Method</label><type>dropdown</type><help>GET is valid only with packet-up mode.</help></field>
-  <field><id>instance.xhttp_session_placement</id><label>Session ID Placement</label><type>dropdown</type></field>
-  <field><id>instance.xhttp_seq_placement</id><label>Sequence Placement</label><type>dropdown</type></field>
-  <field><id>instance.grpc_service_name</id><label>gRPC Service Name</label><type>text</type><hint>optional</hint></field>
-  <field><id>instance.grpc_authority</id><label>gRPC Authority</label><type>text</type><hint>optional</hint></field>
-  <field><id>instance.grpc_multi_mode</id><label>gRPC Multi Mode</label><type>checkbox</type></field>
+  <field><id>instance.xhttp_session_placement</id><label>Session ID Placement</label><type>dropdown</type><help>Optional location for the XHTTP session identifier: path, header, cookie or query. Leave unset unless explicitly configured on the server.</help></field>
+  <field><id>instance.xhttp_seq_placement</id><label>Sequence Placement</label><type>dropdown</type><help>Optional location for the XHTTP packet sequence value. Leave unset unless the server profile uses the same placement.</help></field>
+  <field><id>instance.grpc_service_name</id><label>gRPC Service Name</label><type>text</type><hint>optional</hint><help>gRPC serviceName used by the remote VLESS server. Leave empty when the server does not define one.</help></field>
+  <field><id>instance.grpc_authority</id><label>gRPC Authority</label><type>text</type><hint>optional</hint><help>Optional gRPC authority value. Configure it only when the remote server or proxy expects a specific authority.</help></field>
+  <field><id>instance.grpc_multi_mode</id><label>gRPC Multi Mode</label><type>checkbox</type><help>Enable Xray gRPC multiMode. It must match the transport behavior expected by the remote server.</help></field>
   <field><type>header</type><label>REALITY</label></field>
-  <field><id>instance.security</id><label>Security</label><type>dropdown</type></field>
-  <field><id>instance.reality_sni</id><label>SNI</label><type>text</type></field>
-  <field><id>instance.reality_public_key</id><label>Public Key</label><type>text</type></field>
+  <field><id>instance.security</id><label>Security</label><type>dropdown</type><help>Transport security mode. This plugin release supports VLESS with REALITY.</help></field>
+  <field><id>instance.reality_sni</id><label>SNI</label><type>text</type><help>REALITY serverName/SNI from the remote server profile. It is required and must match a name accepted by the server.</help></field>
+  <field><id>instance.reality_public_key</id><label>Public Key</label><type>text</type><help>REALITY public key of the remote server. Copy it exactly from the server configuration or VLESS link.</help></field>
   <field><id>instance.reality_short_id</id><label>Short ID</label><type>text</type><hint>0-16 hexadecimal characters</hint></field>
   <field><id>instance.reality_spider_x</id><label>SpiderX</label><type>text</type><hint>optional, e.g. /</hint></field>
-  <field><id>instance.fingerprint</id><label>Fingerprint</label><type>dropdown</type></field>
+  <field><id>instance.fingerprint</id><label>Fingerprint</label><type>dropdown</type><help>uTLS client fingerprint presented by REALITY. Use the value expected by the server profile; chrome is a common default.</help></field>
   <field><id>instance.socks5_listen</id><label>SOCKS5 Listen Address</label><type>text</type><help>Internal loopback listener between HEV and Xray.</help></field>
-  <field><id>instance.socks5_port</id><label>SOCKS5 Port</label><type>text</type></field>
-  <field><id>instance.tun_interface</id><label>TUN Interface</label><type>text</type></field>
-  <field><id>instance.tun_address</id><label>TUN Address</label><type>text</type></field>
-  <field><id>instance.mtu</id><label>MTU</label><type>text</type></field>
+  <field><id>instance.socks5_port</id><label>SOCKS5 Port</label><type>text</type><help>Local loopback port used only between HEV and this Xray instance. It must be unique across Xray clients; new clients receive the next free port automatically.</help></field>
+  <field><id>instance.tun_interface</id><label>TUN Interface</label><type>text</type><help>FreeBSD tun(4) device created for this client, for example tun0. It must be unique and not used by another OPNsense interface or service.</help></field>
+  <field><id>instance.tun_address</id><label>TUN Address</label><type>text</type><help>Plugin-owned transit address assigned to the TUN. HEV on FreeBSD requires an IPv4 /32; new clients receive a free 169.254.x.1/32 address automatically.</help></field>
+  <field><id>instance.mtu</id><label>MTU</label><type>text</type><help>MTU applied to this TUN interface. Default is 1500; reduce it only when the routed path requires a smaller packet size.</help></field>
   <field><id>instance.gateway_health_sync</id><label>Gateway Health Sync</label><type>checkbox</type><help>Mirror end-to-end Xray proxy health into a native OPNsense static Far Gateway Force Down state so Gateway Groups can fail over. Assign and enable this TUN, keep IPv4/IPv6 configuration at None, and keep Dynamic Gateway Policy disabled. The plugin creates or adopts the synthetic Far Gateway automatically.</help></field>
-  <field><id>instance.loglevel</id><label>Xray Log Level</label><type>dropdown</type></field>
+  <field><id>instance.loglevel</id><label>Xray Log Level</label><type>dropdown</type><help>Verbosity of the per-client Xray core log. warning is suitable for normal use; debug can be very noisy and is intended for troubleshooting.</help></field>
 </form>
