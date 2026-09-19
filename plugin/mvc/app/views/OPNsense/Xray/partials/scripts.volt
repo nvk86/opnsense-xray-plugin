@@ -93,22 +93,23 @@
                     commands: function (column, row) {
                         var uuid = escAttr(row.uuid);
                         var disabled = enabledValue(row.enabled) ? '' : ' disabled="disabled"';
-                        return '<button type="button" class="btn btn-xs btn-success cmd-inst-start bootgrid-tooltip"'
+                        var style = ' style="padding:0 3px;border:0;box-shadow:none;"';
+                        return '<button type="button" class="btn btn-xs btn-link text-success cmd-inst-start bootgrid-tooltip"' + style
                              +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Start this client") }}">'
-                             +   '<span class="fa fa-play fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-danger cmd-inst-stop bootgrid-tooltip"'
+                             +   '<span class="fa fa-play fa-fw"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-link text-danger cmd-inst-stop bootgrid-tooltip"' + style
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Stop this client") }}">'
-                             +   '<span class="fa fa-stop fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-warning cmd-inst-restart bootgrid-tooltip"'
+                             +   '<span class="fa fa-stop fa-fw"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-link text-warning cmd-inst-restart bootgrid-tooltip"' + style
                              +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Restart this client") }}">'
-                             +   '<span class="fa fa-refresh fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-default cmd-inst-test bootgrid-tooltip"'
-                             +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Test") }}">'
-                             +   '<span class="fa fa-plug fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-default command-edit bootgrid-tooltip"'
+                             +   '<span class="fa fa-refresh fa-fw"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-link cmd-inst-test bootgrid-tooltip"' + style
+                             +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Test connectivity") }}">'
+                             +   '<span class="fa fa-plug fa-fw"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-link command-edit bootgrid-tooltip"' + style
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Edit") }}">'
-                             +   '<span class="fa fa-pencil fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-default command-delete bootgrid-tooltip"'
+                             +   '<span class="fa fa-pencil fa-fw"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-link command-delete bootgrid-tooltip"' + style
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Delete") }}">'
                              +   '<span class="fa fa-trash-o fa-fw"></span></button>';
                     }
@@ -162,18 +163,24 @@
             $('.selectpicker').selectpicker('refresh');
         });
 
-        // ── Save General, then reconfigure ──────────────────────────
-        // Keep persistence and runtime synchronization in one action flow.
-        // by opnsense-awg-plugin.
-        $("#reconfigureAct").SimpleActionButton({
-            onPreAction: function () {
-                var dfObj = new $.Deferred();
-                saveFormToEndpoint("/api/xray/general/set", 'frm_general_settings', function () {
-                    dfObj.resolve();
-                });
-                return dfObj;
-            }
-        });
+        // ── Apply ─────────────────────────────────────────────────
+        // On General, persist the form before runtime reconciliation. On Clients
+        // the grid has already persisted row edits, so Apply only reconciles runtime.
+        if ($("#reconfigureAct").length) {
+            $("#reconfigureAct").SimpleActionButton({
+                onPreAction: function () {
+                    var dfObj = new $.Deferred();
+                    if (!$("#frm_general_settings").length) {
+                        dfObj.resolve();
+                        return dfObj;
+                    }
+                    saveFormToEndpoint("/api/xray/general/set", 'frm_general_settings', function () {
+                        dfObj.resolve();
+                    });
+                    return dfObj;
+                }
+            });
+        }
 
         // ── Status badges + per-instance status ───────────────────
         function refreshInstancesStatus() {
