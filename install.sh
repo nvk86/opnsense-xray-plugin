@@ -345,20 +345,19 @@ validate_source_tree() {
     ! grep -Fq "\$node['uuid']" "$PLUGIN_DIR/etc/inc/plugins.inc.d/xray.inc" \
         || die "xray_services() must not use array access on MVC model nodes."
 
-    # GUI/runtime regression guards. The General page does not render the
-    # Clients grid, therefore UIBootgrid must never be invoked on an empty selection.
-    grep -Fq 'id="reconfigureAct"' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/general.volt" \
-        || die "General Save button id is missing."
-    grep -Fq '> {{ lang._('"'"'Save'"'"') }}' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/general.volt" \
-        || die "General Save button must contain visible text."
-    grep -Fq 'data-endpoint="/api/xray/service/reconfigure"' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/general.volt" \
-        || die "General Save must use the proven service/reconfigure action."
+    # GUI/runtime regression guards. General and Clients use the standard
+    # OPNsense Apply partial. The General page does not render the Clients grid,
+    # therefore UIBootgrid must never be invoked on an empty selection.
+    grep -Fq "partial('layout_partials/base_apply_button'" "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/general.volt" \
+        || die "Standard Apply button partial is missing."
+    grep -Fq "'data_endpoint': '/api/xray/service/reconfigure'" "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/general.volt" \
+        || die "Apply must use the service/reconfigure action."
     grep -Fq '$("#reconfigureAct").SimpleActionButton' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" \
-        || die "General Save must use SimpleActionButton."
+        || die "Apply must use SimpleActionButton."
     grep -Fq 'saveFormToEndpoint("/api/xray/general/set"' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" \
-        || die "General Save persistence endpoint is missing."
+        || die "General Apply persistence endpoint is missing."
     grep -Fq "'frm_general_settings'" "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" \
-        || die "General Save form id is missing."
+        || die "General Apply form id is missing."
     grep -Fq 'if ($("#grid-instances").length) {' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" \
         || die "Clients UIBootgrid initialization must be guarded when the grid is absent."
     _grid_guard_line=$(grep -nF 'if ($("#grid-instances").length) {' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" | head -1 | cut -d: -f1)
