@@ -234,7 +234,8 @@ class ServiceController extends ApiMutableServiceControllerBase
 
         $statusRaw = trim((string)(new Backend())->configdRun('xray statusall'));
         $statusAll = json_decode($statusRaw, true);
-        if (!is_array($statusAll)) {
+        $runtimeInventoryOk = is_array($statusAll);
+        if (!$runtimeInventoryOk) {
             $statusAll = [];
         }
 
@@ -253,6 +254,9 @@ class ServiceController extends ApiMutableServiceControllerBase
                 1,
                 ['version' => $pluginVersion]
             ),
+            '# HELP opnsense_xray_runtime_inventory_ok Whether the runtime inventory could be read successfully.',
+            '# TYPE opnsense_xray_runtime_inventory_ok gauge',
+            $this->prometheusSample('opnsense_xray_runtime_inventory_ok', $runtimeInventoryOk ? 1 : 0),
             '# HELP opnsense_xray_service_enabled Whether Xray is enabled in configuration.',
             '# TYPE opnsense_xray_service_enabled gauge',
             $this->prometheusSample('opnsense_xray_service_enabled', $serviceEnabled ? 1 : 0),
