@@ -21,6 +21,13 @@
             <pattern>api/xray/service/*</pattern>
         </patterns>
     </acl_xray_service>
+    <acl_xray_metrics>
+        <n>Xray: Prometheus metrics</n>
+        <description>Allow read-only access to the Prometheus metrics endpoint</description>
+        <patterns>
+            <pattern>api/xray/service/metrics</pattern>
+        </patterns>
+    </acl_xray_metrics>
     <acl_xray_import>
         <n>Xray: Import VLESS link</n>
         <description>Allow access to VLESS link parser (import/parse)</description>
