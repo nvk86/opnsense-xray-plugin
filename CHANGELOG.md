@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.1 — 2026-09-19
+
+Gateway Group compatibility and Far Gateway health synchronization.
+
+- Replaced the 1.0.0 addressless dynamic-gateway integration with static synthetic **Far Gateways**, allowing Xray TUNs to participate in native OPNsense Gateway Groups and PF `round-robin` pools.
+- Gateway Health Sync now derives an adjacent synthetic gateway address from each HEV-owned TUN `/32`, creates or adopts the matching Far Gateway, keeps native gateway monitoring disabled, and drives `force_down` from the existing end-to-end Xray health probe.
+- Legacy plugin-owned 1.0.0 dynamic gateways are released after Dynamic Gateway Policy is disabled; their names are reused when available so existing Gateway Group references can survive the transition.
+- Pre-existing user-created Far Gateways remain user-owned: only `Force Down` is synchronized and the original value is restored when ownership is released.
+- Diagnostics now treat **Dynamic Gateway Policy disabled** as the correct state for Xray policy routing and report the expected/native Far Gateway address.
+- Added supported in-place installer migration from 1.0.0 to 1.0.1.
+- Updated installation and policy-routing documentation to keep interface IPv4/IPv6 configuration at `None`, leave HEV as the sole TUN-address owner, and use the static Far Gateway for Gateway Groups.
+- No manual host route to the synthetic gateway is required for PF `route-to` operation on the HEV point-to-point TUN.
+
 ## 1.0.0 — 2026-09-14
 
 Initial public release.

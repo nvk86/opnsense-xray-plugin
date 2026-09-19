@@ -35,7 +35,7 @@ HevSocks5Tunnel
 - End-to-end health probe through the client's own SOCKS5/Xray path.
 - Optional watchdog with a consecutive-failure threshold and restart cooldown.
 - Optional per-client **Gateway Health Sync** to feed verified proxy health into native OPNsense Gateway Group failover.
-- Diagnostics for runtime state, TUN ownership, interface assignment, Dynamic Gateway Policy, gateway synchronization/native gateway state and loaded PF `route-to` rules.
+- Diagnostics for runtime state, TUN ownership, interface assignment, Far Gateway readiness, gateway synchronization/native gateway state and loaded PF `route-to` rules.
 - Persistent service, watchdog and per-client Xray logs with `newsyslog` rotation.
 - Transactional install/reinstall with rollback.
 - Plugin-owned upstream binaries; FreeBSD package repositories are not modified.
@@ -78,7 +78,7 @@ After installation refresh the OPNsense GUI and open:
 
 ### Reinstall / future upgrades
 
-Running `install.sh` again on an installed **1.0.0** performs a guarded reinstall while preserving configuration and restoring previously running instances. The installer refuses an in-place version transition unless that migration path is explicitly supported by the release being installed.
+Running `install.sh` again on an installed **1.0.1** performs a guarded reinstall while preserving configuration and restoring previously running instances. An in-place upgrade from **1.0.0 → 1.0.1** is supported; other version transitions are refused unless explicitly supported by the target release.
 
 ### Uninstall
 
@@ -103,7 +103,7 @@ Saved OPNsense Xray configuration can optionally be purged during uninstall. The
 
 ### VLESS URI import scope
 
-The 1.0.0 structured importer intentionally accepts the configuration surface that the plugin can persist and regenerate without silently losing parameters:
+The structured importer intentionally accepts the configuration surface that the plugin can persist and regenerate without silently losing parameters:
 
 - security: `reality`;
 - encryption: `none`;
@@ -123,12 +123,12 @@ For each client used for policy routing:
 
 1. Assign its `tunN` under **Interfaces → Assignments**.
 2. Enable the assigned interface and leave IPv4/IPv6 configuration as **None**; HEV owns the TUN address.
-3. Enable **Dynamic gateway policy** for the assigned TUN when using it as a policy-routing gateway.
-4. Create the required gateway or gateway group using normal OPNsense configuration.
-5. Apply that gateway or gateway group to the desired LAN/VLAN firewall rule.
-6. Confirm **VPN → Xray → Diagnostics** sees the assignment and, when applicable, a loaded PF `route-to` rule.
+3. Keep **Dynamic Gateway Policy disabled**. Addressless dynamic gateways are not suitable members of OPNsense Gateway Groups because they can be omitted from the generated PF `route-to` pool.
+4. Enable **Gateway Health Sync** to let the plugin create/adopt the client's static **Far Gateway**, or create the equivalent Far Gateway manually when health synchronization is not desired. For the default allocator, a TUN such as `169.254.101.1/32` uses synthetic gateway `169.254.101.2`.
+5. Create the required gateway group using the Far Gateway, then apply that gateway or gateway group to the desired LAN/VLAN firewall rule.
+6. Confirm **VPN → Xray → Diagnostics** sees the assignment, Far Gateway and, when applicable, a loaded PF `route-to` rule.
 
-Do not route the firewall's own default route through the Xray TUN unless that is explicitly part of your design.
+The synthetic Far Gateway address is a policy-routing token for OPNsense/PF; no remote host is expected to answer on it. HEV remains the sole owner of the TUN's local `/32` address. Do not route the firewall's own default route through the Xray TUN unless that is explicitly part of your design.
 
 ## Health monitoring and watchdog
 
@@ -138,14 +138,16 @@ Diagnostics separates local runtime state from proxy connectivity and reports th
 
 ## Gateway Health Sync
 
-Gateway Health Sync is opt-in. When enabled for a client, the plugin mirrors verified end-to-end Xray health into the corresponding native OPNsense dynamic gateway `force_down` state and invokes OPNsense's routing alarm path when that state changes. A transient first or second failed probe is treated as inconclusive for gateway state; `Force Down` is asserted only after three consecutive failures and is cleared on the next successful probe.
+Gateway Health Sync is opt-in. In 1.0.1 it mirrors verified end-to-end Xray health into a native OPNsense **static Far Gateway** `force_down` state and invokes OPNsense's routing alarm path when that state changes. This makes Xray gateways usable inside normal OPNsense Gateway Groups and PF round-robin pools. A transient first or second failed probe is treated as inconclusive for gateway state; `Force Down` is asserted only after three consecutive failures and is cleared on the next successful probe.
 
-Enable it only after the client's TUN is assigned under **Interfaces → Assignments** and **Dynamic gateway policy** is enabled. The plugin records ownership and the pre-existing gateway state:
+Enable it only after the client's TUN is assigned and enabled under **Interfaces → Assignments**, with IPv4/IPv6 configuration left at **None** and **Dynamic Gateway Policy disabled**. The plugin derives a synthetic adjacent gateway address from the TUN `/32`, creates or adopts a matching Far Gateway with native monitoring disabled, and records ownership plus the pre-existing `Force Down` state:
 
-- a pre-existing persisted gateway is never taken over permanently; its original `Force Down` value is restored when sync is released;
-- a native dynamic gateway materialized solely so the plugin can manage health state is removed again when sync is released, its client is deleted, its required interface/gateway-policy prerequisites disappear, or the plugin is uninstalled; stale ownership records are reconciled on later lifecycle operations.
+- a matching pre-existing Far Gateway remains user-owned; only its `Force Down` value is synchronized and the original value is restored when sync is released;
+- a Far Gateway created solely by the plugin is removed again when sync is released, its client is deleted, required interface prerequisites disappear, or the plugin is uninstalled;
+- legacy 1.0.0 plugin-owned dynamic gateways are released and replaced with a Far Gateway after Dynamic Gateway Policy is disabled; the previous gateway name is reused when available so existing Gateway Group references can continue to resolve;
+- stale ownership records are reconciled on later lifecycle operations.
 
-This mechanism is separate from `dpinger`: the Xray end-to-end probe is the health source for a synchronized Xray gateway, while ordinary gateways continue to use their normal OPNsense monitoring configuration.
+This mechanism is separate from `dpinger`: native monitoring stays disabled for synchronized Xray Far Gateways because the Xray end-to-end probe is their health source, while ordinary gateways continue to use normal OPNsense monitoring.
 
 ## Logs
 

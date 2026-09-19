@@ -1,50 +1,73 @@
-# opnsense-xray-plugin 1.0.0
+# opnsense-xray-plugin 1.0.1
 
-First public release of `opnsense-xray-plugin`, a client-only Xray integration for OPNsense.
+Maintenance release focused on native OPNsense Gateway Group compatibility.
 
-## Highlights
+## What changed
 
-- VLESS + REALITY client management for RAW, XHTTP and gRPC.
-- Optional VLESS Vision flow is stored, imported, validated and emitted into the generated Xray configuration instead of being dropped.
-- Xray-core loopback SOCKS5 → HevSocks5Tunnel → FreeBSD `tun(4)` architecture, leaving OPNsense in control of policy routing.
-- Per-client Start / Stop / Restart / Validate / Test operations.
-- Automatic collision-aware allocation of TUN interface, local SOCKS5 port and link-local `/32` address.
-- End-to-end health checks plus an optional watchdog with consecutive-failure and cooldown protection.
-- Optional Gateway Health Sync maps verified proxy health to a native OPNsense dynamic gateway `Force Down` state for Gateway Group failover, with three-failure debounce to avoid flapping on transient probe loss.
-- Strict ownership handling: unrelated processes and generic `tunN` devices are not stopped or destroyed merely because their names look similar.
-- Transactional installer with verified upstream assets, rollback and restoration of the pre-install running set.
+- Gateway Health Sync now uses a **static synthetic Far Gateway** instead of the addressless dynamic gateway used by 1.0.0.
+- Xray TUN gateways can therefore participate in ordinary OPNsense Gateway Groups and PF `round-robin` pools.
+- The synthetic gateway is derived from the HEV-owned TUN `/32` address. With the default allocator, for example:
+  - `169.254.100.1/32` → `169.254.100.2`
+- HEV remains the sole owner of the TUN address. Interface IPv4/IPv6 configuration stays at **None**.
+- **Dynamic Gateway Policy must be disabled** for Xray interfaces in 1.0.1.
+- Native gateway monitoring remains disabled; the existing end-to-end Xray health probe drives `Force Down` after the same three-consecutive-failure debounce.
+- A matching user-created Far Gateway is adopted without taking permanent ownership. Its original `Force Down` state is restored when synchronization is released.
+- A Far Gateway created solely by the plugin is removed when synchronization is released, the client is deleted, or the plugin is uninstalled.
+- Legacy 1.0.0 plugin-owned dynamic gateways are released and replaced after Dynamic Gateway Policy is disabled. Their old name is reused when available so Gateway Group references can continue to resolve.
+- Diagnostics now show the expected/native Far Gateway and treat Dynamic Gateway Policy **disabled** as the correct state.
 
-## Upstream Xray policy
+## Upgrade from 1.0.0
 
-The installer deliberately selects the newest suitable non-draft Xray-core release **including pre-releases**. This is intentional for 1.0.0.
+In-place upgrade from 1.0.0 is supported.
 
-GitHub release SHA256 metadata is verified and Xray is additionally checked against its matching upstream `.dgst`. HevSocks5Tunnel is also downloaded from a matching non-draft GitHub release asset.
+For every assigned Xray `tunN`:
 
-Because an Xray pre-release can change transport behavior, run **Validate Config** and **Test** after an upstream Xray change before moving important policy-routing traffic.
+1. Keep the assigned interface enabled with IPv4/IPv6 configuration set to **None**.
+2. Disable **Dynamic Gateway Policy**.
+3. Enable or leave enabled **Gateway Health Sync**.
+4. Let the next conclusive health probe create/adopt the static Far Gateway.
+5. Verify the Gateway Group contains the Xray gateway and that the loaded PF rule contains the expected `route-to` member.
 
-## Supported import surface
+If a 1.0.0 plugin-owned dynamic gateway is still tracked, 1.0.1 releases it before creating the Far Gateway. A pre-existing user-owned gateway is not deleted.
 
-The structured VLESS URI importer in 1.0.0 supports REALITY, `encryption=none`, RAW/TCP, XHTTP and gRPC, optional Vision flow, SNI/Public Key/Short ID/SpiderX/fingerprint, XHTTP host/path/mode and gRPC service/authority/multi mode.
+No manual host route to the synthetic Far Gateway is required for PF `route-to` operation on the HEV point-to-point TUN.
 
-Unsupported values are rejected instead of being accepted and silently omitted from the saved configuration.
+## Gateway Group example
 
-## OPNsense integration boundaries
+A location can now use two equal-priority transports in the same tier:
 
-The plugin does not silently create firewall rules, Outbound NAT or policy-routing rules. Assign the generated `tunN` under **Interfaces → Assignments**, leave interface IP configuration at **None**, configure the native gateway/gateway group, and select it in the required firewall rules.
+```text
+Tier 1
+  PRIMARY_VPN_GW
+  XRAY_TUN_GW
+Pool option: Round Robin
+```
 
-Gateway Health Sync is opt-in. It restores a pre-existing gateway's original `Force Down` state when released. If the plugin had to materialize a native dynamic gateway solely for synchronization, ownership is bound to the persisted OPNsense gateway UUID and that gateway is removed again when sync is disabled, the client is deleted, required interface/gateway-policy prerequisites disappear, or the plugin is uninstalled. Reconcile also cleans stale ownership from interrupted or older deletions and upgrades older name-only ownership records. Reinstall/start cleanup removes obsolete pre-release generated `.json.auto` files and stopped flags for UUIDs that no longer exist.
+The resulting PF rule can contain both members, for example:
+
+```text
+route-to { (vpn0 192.0.2.254), (tun0 169.254.100.2) } round-robin
+```
+
+Existing states stay pinned to their selected gateway; new states are distributed by PF.
+
+## Upstream components
+
+The upstream component policy is unchanged from 1.0.0:
+
+- Xray-core: newest suitable non-draft release, including pre-releases by project policy.
+- HevSocks5Tunnel: newest suitable non-draft FreeBSD x86_64 release.
+- Release assets are verified before installation.
 
 ## Platform
 
 - OPNsense / FreeBSD 15+
 - amd64
 
-## Install
+## Install / upgrade
 
 ```sh
 sh install.sh
 ```
 
-After installation configure clients under **VPN → Xray → Clients**, then enable the service under **VPN → Xray → General**.
-
-Reinstalling the same 1.0.0 version is supported. In-place transitions between different plugin versions are permitted only when the target release explicitly supports that migration path.
+After installation, refresh the GUI and verify **VPN → Xray → Diagnostics** for every policy-routing client.

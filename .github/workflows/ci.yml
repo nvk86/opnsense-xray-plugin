@@ -32,9 +32,9 @@ jobs:
         run: php tests/import_parser_test.php
       - name: Release integrity
         run: |
-          test "$(cat VERSION)" = "1.0.0"
+          test "$(cat VERSION)" = "1.0.1"
           ! grep -RniE --exclude-dir=.git --exclude='ci.yml' \
-            '1\.0\.0-(rc|beta)|1\.0\.1-dev|0\.2\.[0-9]+|TESTING\.ru|preserved lab configuration' .
+            '1\.0\.1-(rc|beta)|1\.0\.2-dev|0\.2\.[0-9]+|TESTING\.ru|preserved lab configuration' .
           ! grep -RniE 'ws_path|ws_host|httpupgrade_path|httpupgrade_host' plugin
           test ! -e plugin/mvc/app/controllers/OPNsense/Xray/LogsController.php
           ! grep -RniE "section == 'logs'|currentSection === 'logs'" plugin/mvc/app/views/OPNsense/Xray
@@ -44,6 +44,10 @@ jobs:
           grep -Fq 'releaseGatewayHealthOwnership' plugin/mvc/app/controllers/OPNsense/Xray/Api/InstanceController.php
           grep -Fq "elseif (\$failures >= 3)" plugin/scripts/Xray/xray-health.php
           grep -Fq "\$healthState === 'unknown' || \$healthState === 'stale'" plugin/scripts/Xray/xray-gateway-sync.php
+          grep -Fq 'gs_synthetic_gateway_for_instance' plugin/scripts/Xray/xray-gateway-sync.php
+          grep -Fq "'fargw'=>'1'" plugin/scripts/Xray/xray-gateway-sync.php
+          grep -Fq 'Disable Dynamic Gateway Policy' plugin/scripts/Xray/xray-gateway-sync.php
+          ! grep -Fq "'gateway'=>'dynamic'" plugin/scripts/Xray/xray-gateway-sync.php
           grep -Fq "if (\$trackedUuid !== '')" plugin/scripts/Xray/xray-gateway-sync.php
           grep -Fq "\$registry[\$uuid]['uuid'] = \$createdUuid" plugin/scripts/Xray/xray-gateway-sync.php
           grep -Fq "config-*.json.auto" plugin/scripts/Xray/xray-service-control.php

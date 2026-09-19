@@ -50,6 +50,20 @@ function format_bytes(int $bytes): string
     return round($bytes / (1024 ** $i), 1) . ' ' . $units[$i];
 }
 
+function synthetic_gateway_from_cidr(string $cidr): ?string
+{
+    $parts = explode('/', trim($cidr), 2);
+    if (count($parts) !== 2 || $parts[1] !== '32'
+        || filter_var($parts[0], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+        return null;
+    }
+    $value = ip2long($parts[0]);
+    if ($value === false) return null;
+    if ($value < 0) $value += 4294967296;
+    if (($value & 0xff) >= 254) return null;
+    return long2ip($value + 1);
+}
+
 $uuid = isset($argv[1]) ? trim((string)$argv[1]) : '';
 if (!valid_uuid($uuid)) fail_json('Valid instance UUID required');
 $cfg = OPNsense\Core\Config::getInstance()->object();
@@ -113,18 +127,38 @@ if (isset($cfg->interfaces)) {
         break;
     }
 }
+
 $gatewayHealthSync=(string)($inst->gateway_health_sync ?? '0')==='1';
-$gatewaySyncReady=$assignment!=='' && $assignmentEnabled && $gatewayPolicy;
-$nativeGatewayName=''; $nativeGatewayForceDown=false; $nativeGatewayStatus=''; $nativeGatewayStatusText='';
+$expectedGatewayAddress=synthetic_gateway_from_cidr($expectedAddr);
+$gatewaySyncReady=$assignment!=='' && $assignmentEnabled && !$gatewayPolicy && $expectedGatewayAddress!==null;
+
+$nativeGatewayName='';
+$nativeGatewayAddress='';
+$nativeGatewayForceDown=false;
+$nativeGatewayIsFar=false;
+$nativeGatewayMonitorDisabled=false;
+$nativeGatewayStatus='';
+$nativeGatewayStatusText='';
 if ($assignment!=='') {
     try {
         $gwModel=new OPNsense\Routing\Gateways();
+        $fallback=null;
         foreach ($gwModel->gatewaysIndexedByName(true, true, true) as $gwName=>$gw) {
-            if (($gw['interface'] ?? '')===$assignment && ($gw['ipprotocol'] ?? 'inet')==='inet') {
-                $nativeGatewayName=(string)$gwName;
-                $nativeGatewayForceDown=!empty($gw['force_down']) && (string)$gw['force_down']!=='0';
-                if (!empty($gw['gateway_interface'])) break;
+            if (($gw['interface'] ?? '')!==$assignment || ($gw['ipprotocol'] ?? 'inet')!=='inet') continue;
+            $row=$gw;
+            $row['name']=$gwName;
+            if ($fallback===null) $fallback=$row;
+            if ($expectedGatewayAddress!==null && trim((string)($gw['gateway'] ?? ''))===$expectedGatewayAddress) {
+                $fallback=$row;
+                break;
             }
+        }
+        if ($fallback!==null) {
+            $nativeGatewayName=(string)($fallback['name'] ?? '');
+            $nativeGatewayAddress=trim((string)($fallback['gateway'] ?? ''));
+            $nativeGatewayForceDown=!empty($fallback['force_down']) && (string)$fallback['force_down']!=='0';
+            $nativeGatewayIsFar=!empty($fallback['fargw']) && (string)$fallback['fargw']!=='0';
+            $nativeGatewayMonitorDisabled=!empty($fallback['monitor_disable']) && (string)$fallback['monitor_disable']!=='0';
         }
         if ($nativeGatewayName!=='') {
             $gwOut=[]; $gwRc=1;
@@ -189,9 +223,13 @@ $result=[
     'hev_uptime_secs'=>pid_uptime($hevPid), 'hev_uptime'=>format_uptime(pid_uptime($hevPid)),
     'server_address'=>$server, 'server_port'=>$port,
     'assigned'=>$assignment!=='', 'assignment_enabled'=>$assignmentEnabled, 'assignment'=>$assignment, 'assignment_descr'=>$assignmentDescr,
-    'dynamic_gateway_policy'=>$gatewayPolicy, 'interface_ip_config'=>$configuredIpType, 'interface_ipv6_config'=>$configuredIp6Type,
+    'dynamic_gateway_policy'=>$gatewayPolicy, 'dynamic_gateway_policy_ok'=>!$gatewayPolicy,
+    'interface_ip_config'=>$configuredIpType, 'interface_ipv6_config'=>$configuredIp6Type,
     'gateway_health_sync_enabled'=>$gatewayHealthSync, 'gateway_sync_ready'=>$gatewaySyncReady,
-    'native_gateway_name'=>$nativeGatewayName, 'native_gateway_force_down'=>$nativeGatewayForceDown,
+    'expected_gateway_ip'=>$expectedGatewayAddress,
+    'native_gateway_name'=>$nativeGatewayName, 'native_gateway_address'=>$nativeGatewayAddress,
+    'native_gateway_is_far'=>$nativeGatewayIsFar, 'native_gateway_monitor_disabled'=>$nativeGatewayMonitorDisabled,
+    'native_gateway_force_down'=>$nativeGatewayForceDown,
     'native_gateway_status'=>$nativeGatewayStatus, 'native_gateway_status_text'=>$nativeGatewayStatusText,
     'pf_route_to_present'=>$pfRoutePresent, 'pf_route_to_rules'=>$pfLines, 'pf_route_to_sources'=>array_keys($pfSources),
     'connectivity'=>$healthState, 'health_message'=>(string)($health['message'] ?? ''), 'health_checked_at'=>$healthChecked>0?$healthChecked:null,
