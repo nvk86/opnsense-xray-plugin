@@ -360,6 +360,12 @@ validate_source_tree() {
         || die "General Apply form id is missing."
     grep -Fq 'if ($("#grid-instances").length) {' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" \
         || die "Clients UIBootgrid initialization must be guarded when the grid is absent."
+    grep -Fq 'public function metricsAction()' "$PLUGIN_DIR/mvc/app/controllers/OPNsense/Xray/Api/ServiceController.php" \
+        || die "Prometheus metrics endpoint is missing."
+    grep -Fq 'text/plain; version=0.0.4' "$PLUGIN_DIR/mvc/app/controllers/OPNsense/Xray/Api/ServiceController.php" \
+        || die "Prometheus metrics content type is missing."
+    grep -Fq '<acl_xray_metrics>' "$PLUGIN_DIR/mvc/app/models/OPNsense/Xray/ACL/ACL.xml" \
+        || die "Prometheus metrics ACL is missing."
     _grid_guard_line=$(grep -nF 'if ($("#grid-instances").length) {' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" | head -1 | cut -d: -f1)
     _grid_init_line=$(grep -nF '$("#grid-instances").UIBootgrid({' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" | head -1 | cut -d: -f1)
     [ -n "$_grid_guard_line" ] && [ -n "$_grid_init_line" ] && [ "$_grid_guard_line" -lt "$_grid_init_line" ] \
