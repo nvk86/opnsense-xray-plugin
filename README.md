@@ -124,11 +124,30 @@ For each client used for policy routing:
 1. Assign its `tunN` under **Interfaces → Assignments**.
 2. Enable the assigned interface and leave IPv4/IPv6 configuration as **None**; HEV owns the TUN address.
 3. Keep **Dynamic Gateway Policy disabled**. Addressless dynamic gateways are not suitable members of OPNsense Gateway Groups because they can be omitted from the generated PF `route-to` pool.
-4. Enable **Gateway Health Sync** to let the plugin create/adopt the client's static **Far Gateway**, or create the equivalent Far Gateway manually when health synchronization is not desired. For the default allocator, a TUN such as `169.254.101.1/32` uses synthetic gateway `169.254.101.2`.
+4. Enable **Gateway Health Sync** to let the plugin create/adopt the client's static **Far Gateway**, or create the equivalent Far Gateway manually when health synchronization is not desired. For the default allocator, a TUN such as `169.254.100.1/32` uses synthetic gateway `169.254.100.2`.
 5. Create the required gateway group using the Far Gateway, then apply that gateway or gateway group to the desired LAN/VLAN firewall rule.
 6. Confirm **VPN → Xray → Diagnostics** sees the assignment, Far Gateway and, when applicable, a loaded PF `route-to` rule.
 
 The synthetic Far Gateway address is a policy-routing token for OPNsense/PF; no remote host is expected to answer on it. HEV remains the sole owner of the TUN's local `/32` address. Do not route the firewall's own default route through the Xray TUN unless that is explicitly part of your design.
+
+### Gateway Group example: AmneziaWG + Xray
+
+A common layout is to place an AmneziaWG gateway and an Xray Far Gateway at the same tier and let PF distribute new states with **Round Robin**:
+
+```text
+Tier 1
+  AWG_PRIMARY_GW
+  XRAY_TUN_GW
+Pool option: Round Robin
+```
+
+For example, the generated PF rule can contain both members:
+
+```text
+route-to { (awg0 192.0.2.254), (tun0 169.254.100.2) } round-robin
+```
+
+If you use AmneziaWG on OPNsense, see the companion community project [nvk86/opnsense-awg-plugin](https://github.com/nvk86/opnsense-awg-plugin). It is optional and independent; `opnsense-xray-plugin` does not require it.
 
 ## Health monitoring and watchdog
 
