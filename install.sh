@@ -1381,8 +1381,8 @@ check_saved_config_compatibility
 CURRENT_VERSION="not installed"
 [ ! -f "$VERSION_FILE" ] || CURRENT_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
 if [ "$CURRENT_VERSION" != "not installed" ] && [ "$CURRENT_VERSION" != "$PLUGIN_VERSION" ]; then
-    if ! { [ "$CURRENT_VERSION" = "1.0.0" ] && [ "$PLUGIN_VERSION" = "1.0.1" ]; }; then
-        die "$PLUGIN_VERSION has no supported in-place migration from installed plugin version $CURRENT_VERSION. Uninstall that version first."
+    if ! { [ "$CURRENT_VERSION" = "1.0.1" ] && [ "$PLUGIN_VERSION" = "1.1.0" ]; }; then
+        die "$PLUGIN_VERSION has no supported in-place migration from installed plugin version $CURRENT_VERSION. Upgrade to 1.0.1 first or uninstall that version."
     fi
 fi
 
