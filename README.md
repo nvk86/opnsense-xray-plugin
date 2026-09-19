@@ -22,10 +22,15 @@ HevSocks5Tunnel
 
 ## What's new in 1.2.0
 
-Version **1.2.0** adds native read-only Prometheus telemetry for Xray while preserving the 1.1.x runtime and configuration model.
+Version **1.2.0** rolls the Gateway Group improvements from 1.0.1 together with the UI/UX and selective Apply work from 1.1.0, and adds native read-only Prometheus telemetry.
 
+- **Gateway Health Sync** uses a static synthetic **Far Gateway** derived from each HEV-owned TUN `/32`, so Xray clients can participate in normal OPNsense Gateway Groups and PF `round-robin` pools.
+- **Dynamic Gateway Policy remains disabled** for Xray TUN interfaces; the existing end-to-end proxy health probe is the source of truth and drives the native gateway **Force Down** state after the three-failure debounce.
+- Matching user-created Far Gateways are adopted without taking permanent ownership, while gateways created solely by the plugin are cleaned up when synchronization is released. Legacy 1.0.0 plugin-owned dynamic gateways are migrated to the Far Gateway model.
+- General and Clients use the standard OPNsense **Apply** workflow with compact, state-aware row actions and clearer configuration help.
+- Apply is differential: unchanged healthy clients remain untouched, changed or unhealthy clients restart individually, new enabled clients start, disabled clients stop, and an explicit manual Stop remains preserved.
 - Added `GET /api/xray/service/metrics` using the Prometheus text exposition format.
-- Exposes service/client state, Xray core, SOCKS5, HEV and TUN readiness, cached end-to-end health, latency/failure timestamps, watchdog state and Gateway Health Sync state.
+- Prometheus exposes service/client state, Xray core, SOCKS5, HEV and TUN readiness, cached end-to-end health, latency/failure timestamps, watchdog state and Gateway Health Sync state.
 - Scraping is passive: the endpoint reads existing runtime and health-cache state and never runs `testconnect` or otherwise initiates a network probe.
 - Added a dedicated **Xray: Prometheus metrics** ACL privilege for monitoring-only API users.
 - Metric labels are intentionally limited to configured client name and interface; server addresses, VLESS UUIDs, REALITY material, health targets and internal instance UUIDs are not exported.
