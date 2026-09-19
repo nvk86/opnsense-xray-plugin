@@ -576,6 +576,45 @@ function xray_validate_config_array(array $c): array
     }
 }
 
+function xray_desired_matches_staged(array $c): bool
+{
+    $uuid = (string)($c['inst_uuid'] ?? '');
+    if (!xray_valid_uuid($uuid)) {
+        return false;
+    }
+    $xrayPath = xray_conf_path($uuid);
+    $hevPath = hev_conf_path($uuid);
+    if (!is_file($xrayPath) || !is_file($hevPath)) {
+        return false;
+    }
+
+    try {
+        $desiredXray = json_encode(
+            xray_build_config($c),
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ) . "\n";
+        $desiredHev = hev_build_config($c);
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    $currentXray = @file_get_contents($xrayPath);
+    $currentHev = @file_get_contents($hevPath);
+    if ($currentXray === false || $currentHev === false) {
+        return false;
+    }
+
+    return hash_equals(hash('sha256', $desiredXray), hash('sha256', $currentXray))
+        && hash_equals(hash('sha256', $desiredHev), hash('sha256', $currentHev));
+}
+
+function xray_runtime_exists(string $uuid): bool
+{
+    return xray_is_running($uuid)
+        || hev_is_running($uuid)
+        || xray_find_owned_iface($uuid) !== '';
+}
+
 function xray_preflight_inventory(array $all): bool
 {
     $ok = true;
@@ -619,7 +658,7 @@ function xray_preflight_inventory(array $all): bool
         return false;
     }
 
-    // Before a bulk Save/Restart mutates any working runtime, ensure every
+    // Before Apply/Restart mutates any working runtime, ensure every
     // instance that should be started has a configuration accepted by Xray.
     foreach ($all as $id => $c) {
         if (empty($c['enabled'])) {
@@ -1535,6 +1574,9 @@ if ($mutating) {
 }
 
 $exitCode = 0;
+// null keeps the normal post-action health behavior; reconfigure replaces it
+// with only the instances whose runtime was actually started/restarted.
+$postHealthTargets = null;
 if ($mutating) {
     xray_event_log('ACTION ' . $action . ($uuid !== '' ? ' [' . $uuid . ']' : '') . ' begin');
 }
@@ -1629,20 +1671,10 @@ try {
             break;
 
         case 'restart':
-        case 'reconfigure':
             $all = xray_get_all_instances();
             if (xray_global_enabled() && !xray_preflight_inventory($all)) {
                 $exitCode = 1;
                 break;
-            }
-            $preserveManualStops = $action === 'reconfigure';
-            $manuallyStopped = [];
-            if ($preserveManualStops) {
-                foreach ($all as $id => $c) {
-                    if (file_exists(xray_stopped_flag($id))) {
-                        $manuallyStopped[$id] = true;
-                    }
-                }
             }
             $ok = true;
             foreach ($all as $id => $c) {
@@ -1656,11 +1688,78 @@ try {
             xray_cleanup_derived($all);
             if (xray_global_enabled()) {
                 foreach ($all as $id => $c) {
-                    if ($c['enabled'] && !isset($manuallyStopped[$id]) && !xray_start_instance($c)) {
+                    if ($c['enabled'] && !xray_start_instance($c)) {
                         $ok = false;
                     }
                 }
             }
+            $exitCode = $ok ? 0 : 1;
+            if ($exitCode === 0) {
+                echo "OK\n";
+            }
+            break;
+
+        case 'reconfigure':
+            $all = xray_get_all_instances();
+            if (xray_global_enabled() && !xray_preflight_inventory($all)) {
+                $exitCode = 1;
+                break;
+            }
+
+            $postHealthTargets = [];
+            $ok = xray_stop_orphans($all);
+
+            foreach ($all as $id => $c) {
+                $manualStopped = file_exists(xray_stopped_flag($id));
+                $runtimeExists = xray_runtime_exists($id);
+
+                if (empty($c['enabled'])) {
+                    if ($runtimeExists && !xray_stop_instance($id, false, $c)) {
+                        $ok = false;
+                    } elseif ($runtimeExists) {
+                        xray_event_log("RECONFIGURE [{$id}]: stopped because instance/service is disabled");
+                    }
+                    continue;
+                }
+
+                // A per-row Stop is intentional state. Apply must preserve it,
+                // even if the persisted client configuration was edited.
+                if ($manualStopped) {
+                    xray_event_log("RECONFIGURE [{$id}]: preserved manual stop");
+                    continue;
+                }
+
+                $status = xray_status_instance($id, $c);
+                $runtimeHealthy = ($status['status'] ?? '') === 'ok';
+                $sameConfig = xray_desired_matches_staged($c);
+
+                if ($runtimeExists && $runtimeHealthy && $sameConfig) {
+                    xray_event_log("RECONFIGURE [{$id}]: unchanged, runtime left untouched");
+                    continue;
+                }
+
+                if ($runtimeExists) {
+                    xray_event_log(
+                        "RECONFIGURE [{$id}]: restarting " .
+                        ($sameConfig ? 'unhealthy runtime' : 'changed configuration')
+                    );
+                    if (!xray_stop_instance($id, false, $c)) {
+                        $ok = false;
+                        continue;
+                    }
+                } else {
+                    xray_event_log("RECONFIGURE [{$id}]: starting enabled client");
+                }
+
+                if (!xray_start_instance($c)) {
+                    $ok = false;
+                    xray_event_log("RECONFIGURE [{$id}]: start failed");
+                    continue;
+                }
+                $postHealthTargets[] = $id;
+            }
+
+            xray_cleanup_derived($all);
             $exitCode = $ok ? 0 : 1;
             if ($exitCode === 0) {
                 echo "OK\n";
@@ -1813,7 +1912,9 @@ try {
         }
         if (in_array($action, ['start', 'restart', 'reconfigure', 'start_instance', 'restart_instance'], true)) {
             $targets = [];
-            if ($uuid !== '') {
+            if (is_array($postHealthTargets)) {
+                $targets = $postHealthTargets;
+            } elseif ($uuid !== '') {
                 $targets[] = $uuid;
             } else {
                 foreach (xray_get_all_instances() as $id => $c) {

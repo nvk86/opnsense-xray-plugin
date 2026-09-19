@@ -3,12 +3,12 @@
         <id>general.enabled</id>
         <label>Enable Xray</label>
         <type>checkbox</type>
-        <help>Enable Xray instances using a loopback SOCKS5 inbound plus HevSocks5Tunnel-managed FreeBSD tun(4).</help>
+        <help>Enable all configured Xray clients. Each client runs Xray on an internal loopback SOCKS5 listener and HEV provides its OPNsense tun(4) interface.</help>
     </field>
     <field>
         <id>general.watchdog_enabled</id>
         <label>Enable Watchdog</label>
         <type>checkbox</type>
-        <help>Check each enabled Xray + HEV runtime chain and its TUN interface every minute and restart an unhealthy instance.</help>
+        <help>Run an end-to-end health check for every enabled client once per minute. After three consecutive failures the watchdog restarts only that client, with a 10-minute per-client restart cooldown. Health checks and Gateway Health Sync continue even when automatic restart is disabled.</help>
     </field>
 </form>

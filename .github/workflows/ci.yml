@@ -32,9 +32,9 @@ jobs:
         run: php tests/import_parser_test.php
       - name: Release integrity
         run: |
-          test "$(cat VERSION)" = "1.0.1"
+          test "$(cat VERSION)" = "1.1.0"
           ! grep -RniE --exclude-dir=.git --exclude='ci.yml' \
-            '1\.0\.1-(rc|beta)|1\.0\.2-dev|0\.2\.[0-9]+|TESTING\.ru|preserved lab configuration' .
+            '1\.1\.0-(rc|beta)|1\.1\.1-dev|0\.2\.[0-9]+|TESTING\.ru|preserved lab configuration' .
           ! grep -RniE 'ws_path|ws_host|httpupgrade_path|httpupgrade_host' plugin
           test ! -e plugin/mvc/app/controllers/OPNsense/Xray/LogsController.php
           ! grep -RniE "section == 'logs'|currentSection === 'logs'" plugin/mvc/app/views/OPNsense/Xray

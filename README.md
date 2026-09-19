@@ -20,6 +20,18 @@ HevSocks5Tunnel
 
 > This is a third-party community plugin. It is not an official OPNsense, Xray-core or HevSocks5Tunnel component.
 
+## What's new in 1.1.0
+
+Version **1.1.0** rolls the Gateway Group improvements from 1.0.1 together with a broad UI/UX and lifecycle refresh.
+
+- **Gateway Health Sync** uses a static synthetic **Far Gateway** derived from each HEV-owned TUN `/32`, so Xray clients can participate in normal OPNsense Gateway Groups and PF `round-robin` pools.
+- **Dynamic Gateway Policy remains disabled** for Xray TUN interfaces; the existing end-to-end proxy health probe is the source of truth and drives the native gateway **Force Down** state after the three-failure debounce.
+- Matching user-created Far Gateways are adopted without taking permanent ownership, while gateways created solely by the plugin are cleaned up when synchronization is released. Legacy 1.0.0 plugin-owned dynamic gateways are migrated to the Far Gateway model.
+- General and Clients now use the standard OPNsense **Apply** workflow with compact, state-aware row actions and clearer configuration help.
+- Apply is differential: unchanged healthy clients remain untouched, changed or unhealthy clients restart individually, new enabled clients start, disabled clients stop, and an explicit manual Stop remains preserved.
+
+Existing 1.0.1 clients, TUN assignments, gateways, health state and policy-routing configuration are preserved.
+
 ## Features
 
 - Native OPNsense GUI under **VPN → Xray → General / Clients / Diagnostics**.
@@ -78,7 +90,7 @@ After installation refresh the OPNsense GUI and open:
 
 ### Reinstall / future upgrades
 
-Running `install.sh` again on an installed **1.0.1** performs a guarded reinstall while preserving configuration and restoring previously running instances. An in-place upgrade from **1.0.0 → 1.0.1** is supported; other version transitions are refused unless explicitly supported by the target release.
+Running `install.sh` again on an installed **1.1.0** performs a guarded reinstall while preserving configuration and restoring previously running instances. An in-place upgrade from **1.0.1 → 1.1.0** is supported.
 
 ### Uninstall
 
@@ -99,7 +111,7 @@ Saved OPNsense Xray configuration can optionally be purged during uninstall. The
 5. Select `raw`, `xhttp` or `grpc`. Transport-specific fields appear automatically.
 6. Use **Validate Config** before saving when desired.
 7. Save the client. New clients receive a free TUN name, SOCKS5 port and link-local `/32` address automatically; change them only when needed.
-8. Open **VPN → Xray → General**, enable Xray and click **Save**.
+8. Open **VPN → Xray → General**, enable Xray and click **Apply**.
 
 ### VLESS URI import scope
 
@@ -157,7 +169,7 @@ Diagnostics separates local runtime state from proxy connectivity and reports th
 
 ## Gateway Health Sync
 
-Gateway Health Sync is opt-in. In 1.0.1 it mirrors verified end-to-end Xray health into a native OPNsense **static Far Gateway** `force_down` state and invokes OPNsense's routing alarm path when that state changes. This makes Xray gateways usable inside normal OPNsense Gateway Groups and PF round-robin pools. A transient first or second failed probe is treated as inconclusive for gateway state; `Force Down` is asserted only after three consecutive failures and is cleared on the next successful probe.
+Gateway Health Sync is opt-in. Since 1.0.1 it mirrors verified end-to-end Xray health into a native OPNsense **static Far Gateway** `force_down` state and invokes OPNsense's routing alarm path when that state changes. This makes Xray gateways usable inside normal OPNsense Gateway Groups and PF round-robin pools. A transient first or second failed probe is treated as inconclusive for gateway state; `Force Down` is asserted only after three consecutive failures and is cleared on the next successful probe.
 
 Enable it only after the client's TUN is assigned and enabled under **Interfaces → Assignments**, with IPv4/IPv6 configuration left at **None** and **Dynamic Gateway Policy disabled**. The plugin derives a synthetic adjacent gateway address from the TUN `/32`, creates or adopts a matching Far Gateway with native monitoring disabled, and records ownership plus the pre-existing `Force Down` state:
 

@@ -63,6 +63,28 @@
             });
         }
 
+        function applyCommandStateToGrid() {
+            $('#grid-instances .cmd-inst-start').each(function () {
+                var uuid = $(this).data('row-id');
+                var info = instanceStatusCache[uuid];
+                if (!info) return;
+
+                var running = info.xray_core === 'running'
+                           || info.hev === 'running'
+                           || info.tun === 'running';
+                var enabled = info.effective_enabled === true;
+
+                $('#grid-instances .cmd-inst-start[data-row-id="' + uuid + '"]')
+                    .toggle(enabled && !running);
+                $('#grid-instances .cmd-inst-stop[data-row-id="' + uuid + '"]')
+                    .toggle(running);
+                $('#grid-instances .cmd-inst-restart[data-row-id="' + uuid + '"]')
+                    .toggle(enabled && running);
+                $('#grid-instances .cmd-inst-test[data-row-id="' + uuid + '"]')
+                    .toggle(enabled && running);
+            });
+        }
+
         // ── Instances CRUD table (UIBootgrid) ───────────────────────
         // The General page does not render the Clients grid.
         // OPNsense's current UIBootgrid() assumes the selected element exists;
@@ -93,22 +115,24 @@
                     commands: function (column, row) {
                         var uuid = escAttr(row.uuid);
                         var disabled = enabledValue(row.enabled) ? '' : ' disabled="disabled"';
-                        return '<button type="button" class="btn btn-xs btn-success cmd-inst-start bootgrid-tooltip"'
+                        var actionStyle = ' style="display:none;margin-right:2px;padding:1px 4px;"';
+                        var commonStyle = ' style="margin-right:2px;padding:1px 4px;"';
+                        return '<button type="button" class="btn btn-xs btn-default cmd-inst-start bootgrid-tooltip"' + actionStyle
                              +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Start this client") }}">'
-                             +   '<span class="fa fa-play fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-danger cmd-inst-stop bootgrid-tooltip"'
+                             +   '<span class="fa fa-play fa-fw text-success"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-default cmd-inst-stop bootgrid-tooltip"' + actionStyle
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Stop this client") }}">'
-                             +   '<span class="fa fa-stop fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-warning cmd-inst-restart bootgrid-tooltip"'
+                             +   '<span class="fa fa-stop fa-fw text-danger"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-default cmd-inst-restart bootgrid-tooltip"' + actionStyle
                              +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Restart this client") }}">'
-                             +   '<span class="fa fa-refresh fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-default cmd-inst-test bootgrid-tooltip"'
-                             +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Test") }}">'
-                             +   '<span class="fa fa-plug fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-default command-edit bootgrid-tooltip"'
+                             +   '<span class="fa fa-refresh fa-fw text-warning"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-default cmd-inst-test bootgrid-tooltip"' + actionStyle
+                             +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Test connectivity") }}">'
+                             +   '<span class="fa fa-plug fa-fw"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-default command-edit bootgrid-tooltip"' + commonStyle
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Edit") }}">'
-                             +   '<span class="fa fa-pencil fa-fw"></span></button> '
-                             + '<button type="button" class="btn btn-xs btn-default command-delete bootgrid-tooltip"'
+                             +   '<span class="fa fa-pencil fa-fw"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-default command-delete bootgrid-tooltip"' + commonStyle
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Delete") }}">'
                              +   '<span class="fa fa-trash-o fa-fw"></span></button>';
                     }
@@ -162,18 +186,24 @@
             $('.selectpicker').selectpicker('refresh');
         });
 
-        // ── Save General, then reconfigure ──────────────────────────
-        // Keep persistence and runtime synchronization in one action flow.
-        // by opnsense-awg-plugin.
-        $("#reconfigureAct").SimpleActionButton({
-            onPreAction: function () {
-                var dfObj = new $.Deferred();
-                saveFormToEndpoint("/api/xray/general/set", 'frm_general_settings', function () {
-                    dfObj.resolve();
-                });
-                return dfObj;
-            }
-        });
+        // ── Apply ─────────────────────────────────────────────────
+        // On General, persist the form before runtime reconciliation. On Clients
+        // the grid has already persisted row edits, so Apply only reconciles runtime.
+        if ($("#reconfigureAct").length) {
+            $("#reconfigureAct").SimpleActionButton({
+                onPreAction: function () {
+                    var dfObj = new $.Deferred();
+                    if (!$("#frm_general_settings").length) {
+                        dfObj.resolve();
+                        return dfObj;
+                    }
+                    saveFormToEndpoint("/api/xray/general/set", 'frm_general_settings', function () {
+                        dfObj.resolve();
+                    });
+                    return dfObj;
+                }
+            });
+        }
 
         // ── Status badges + per-instance status ───────────────────
         function refreshInstancesStatus() {
@@ -211,8 +241,9 @@
                     .addClass(linkClass)
                     .text(linkText);
 
-                // Update per-instance status in grid
+                // Update per-instance status and runtime actions in grid.
                 applyStatusToGrid();
+                applyCommandStateToGrid();
 
                 var running = xok || anyHev || tok;
                 $('#btnStartAll').prop('disabled', running);

@@ -47,7 +47,7 @@
                         <th data-column-id="commands"
                             data-formatter="commands"
                             data-sortable="false"
-                            data-width="11em">{{ lang._('') }}</th>
+                            data-width="13em">{{ lang._('Commands') }}</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -66,9 +66,6 @@
                 </tfoot>
             </table>
 
-            <div id="InstanceChangeMessage" class="alert alert-info" style="display: none;" role="alert">
-                {{ lang._('Saved changes are used on the next Start. Restart a running client to activate its changed configuration.') }}
-            </div>
         </section>
     </div>
 

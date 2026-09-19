@@ -25,19 +25,8 @@
 {% endif %}
 </div>
 
-{% if section == 'general' %}
-<section class="grid-bottom-reserve __mt">
-    <div class="alert content-box" style="display:flex;align-items:center;margin-bottom:0;">
-        <button class="btn btn-primary"
-                id="reconfigureAct"
-                type="button"
-                data-endpoint="/api/xray/service/reconfigure"
-                data-label="{{ lang._('Save') }}"
-                data-error-title="{{ lang._('Error applying Xray settings.') }}">
-            <i class="fa fa-save"></i> {{ lang._('Save') }}
-        </button>
-    </div>
-</section>
+{% if section == 'general' or section == 'clients' %}
+{{ partial('layout_partials/base_apply_button', {'data_endpoint': '/api/xray/service/reconfigure'}) }}
 {% endif %}
 
 {% if section == 'clients' %}
