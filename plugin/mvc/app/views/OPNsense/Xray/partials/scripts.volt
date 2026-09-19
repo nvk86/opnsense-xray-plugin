@@ -594,12 +594,24 @@
                 $('#diag_ip_config').html(ipModeOk
                     ? '<span class="label label-success">IPv4/IPv6: None</span>'
                     : '<span class="label label-danger">IPv4: ' + escAttr(ip4mode) + ', IPv6: ' + escAttr(ip6mode) + '</span>');
-                $('#diag_dynamic_gateway').html(data.dynamic_gateway_policy ? '<span class="label label-success">enabled</span>' : '<span class="label label-danger">disabled</span>');
+                $('#diag_dynamic_gateway').html(data.dynamic_gateway_policy
+                    ? '<span class="label label-danger">enabled — disable for Far Gateway mode</span>'
+                    : '<span class="label label-success">disabled</span>');
                 var syncHtml = data.gateway_health_sync_enabled
                     ? (data.gateway_sync_ready ? '<span class="label label-success">enabled</span>' : '<span class="label label-warning">enabled / not ready</span>')
                     : '<span class="label label-default">disabled</span>';
                 $('#diag_gateway_sync').html(syncHtml);
-                $('#diag_native_gateway').text(data.native_gateway_name || '\u2014');
+                var gwIdentity = data.native_gateway_name || '\u2014';
+                if (data.native_gateway_name && data.native_gateway_address) {
+                    gwIdentity += ' @ ' + data.native_gateway_address;
+                }
+                if (data.native_gateway_name && data.native_gateway_is_far) {
+                    gwIdentity += ' (Far)';
+                }
+                if (!data.native_gateway_name && data.expected_gateway_ip) {
+                    gwIdentity = 'expected ' + data.expected_gateway_ip;
+                }
+                $('#diag_native_gateway').text(gwIdentity);
                 var gwStatus = data.native_gateway_status_text || data.native_gateway_status || '';
                 var gwClass = data.native_gateway_force_down || data.native_gateway_status === 'force_down' || data.native_gateway_status === 'down'
                     ? 'label-danger'
