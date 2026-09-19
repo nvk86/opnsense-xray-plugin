@@ -47,7 +47,7 @@
                         <th data-column-id="commands"
                             data-formatter="commands"
                             data-sortable="false"
-                            data-width="11em">{{ lang._('') }}</th>
+                            data-width="13em">{{ lang._('Commands') }}</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
