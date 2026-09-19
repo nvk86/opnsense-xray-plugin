@@ -93,23 +93,23 @@
                     commands: function (column, row) {
                         var uuid = escAttr(row.uuid);
                         var disabled = enabledValue(row.enabled) ? '' : ' disabled="disabled"';
-                        var style = ' style="padding:0 3px;border:0;box-shadow:none;"';
-                        return '<button type="button" class="btn btn-xs btn-link text-success cmd-inst-start bootgrid-tooltip"' + style
+                        var style = ' style="margin-right:2px;padding:1px 4px;"';
+                        return '<button type="button" class="btn btn-xs btn-default cmd-inst-start bootgrid-tooltip"' + style
                              +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Start this client") }}">'
-                             +   '<span class="fa fa-play fa-fw"></span></button>'
-                             + '<button type="button" class="btn btn-xs btn-link text-danger cmd-inst-stop bootgrid-tooltip"' + style
+                             +   '<span class="fa fa-play fa-fw text-success"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-default cmd-inst-stop bootgrid-tooltip"' + style
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Stop this client") }}">'
-                             +   '<span class="fa fa-stop fa-fw"></span></button>'
-                             + '<button type="button" class="btn btn-xs btn-link text-warning cmd-inst-restart bootgrid-tooltip"' + style
+                             +   '<span class="fa fa-stop fa-fw text-danger"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-default cmd-inst-restart bootgrid-tooltip"' + style
                              +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Restart this client") }}">'
-                             +   '<span class="fa fa-refresh fa-fw"></span></button>'
-                             + '<button type="button" class="btn btn-xs btn-link cmd-inst-test bootgrid-tooltip"' + style
+                             +   '<span class="fa fa-refresh fa-fw text-warning"></span></button>'
+                             + '<button type="button" class="btn btn-xs btn-default cmd-inst-test bootgrid-tooltip"' + style
                              +   disabled + ' data-row-id="' + uuid + '" title="{{ lang._("Test connectivity") }}">'
                              +   '<span class="fa fa-plug fa-fw"></span></button>'
-                             + '<button type="button" class="btn btn-xs btn-link command-edit bootgrid-tooltip"' + style
+                             + '<button type="button" class="btn btn-xs btn-default command-edit bootgrid-tooltip"' + style
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Edit") }}">'
                              +   '<span class="fa fa-pencil fa-fw"></span></button>'
-                             + '<button type="button" class="btn btn-xs btn-link command-delete bootgrid-tooltip"' + style
+                             + '<button type="button" class="btn btn-xs btn-default command-delete bootgrid-tooltip"' + style
                              +   ' data-row-id="' + uuid + '" title="{{ lang._("Delete") }}">'
                              +   '<span class="fa fa-trash-o fa-fw"></span></button>';
                     }
