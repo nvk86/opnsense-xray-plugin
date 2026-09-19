@@ -1,5 +1,5 @@
 #!/bin/sh
-# opnsense-xray-plugin 1.0.1 installer for OPNsense / FreeBSD 15+
+# opnsense-xray-plugin 1.1.0 installer for OPNsense / FreeBSD 15+
 #
 # Xray-core and HevSocks5Tunnel are installed as plugin-owned upstream
 # binaries under /usr/local/libexec/xray. The installer never enables a
@@ -19,7 +19,7 @@
 
 set -eu
 
-PLUGIN_VERSION="1.0.1"
+PLUGIN_VERSION="1.1.0"
 XRAY_RELEASES_API="https://api.github.com/repos/XTLS/Xray-core/releases?per_page=20"
 HEV_RELEASES_API="https://api.github.com/repos/heiher/hev-socks5-tunnel/releases?per_page=20"
 
