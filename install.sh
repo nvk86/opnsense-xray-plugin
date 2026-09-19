@@ -1,5 +1,5 @@
 #!/bin/sh
-# opnsense-xray-plugin 1.1.0 installer for OPNsense / FreeBSD 15+
+# opnsense-xray-plugin 1.2.0 installer for OPNsense / FreeBSD 15+
 #
 # Xray-core and HevSocks5Tunnel are installed as plugin-owned upstream
 # binaries under /usr/local/libexec/xray. The installer never enables a
@@ -19,7 +19,7 @@
 
 set -eu
 
-PLUGIN_VERSION="1.1.0"
+PLUGIN_VERSION="1.2.0"
 XRAY_RELEASES_API="https://api.github.com/repos/XTLS/Xray-core/releases?per_page=20"
 HEV_RELEASES_API="https://api.github.com/repos/heiher/hev-socks5-tunnel/releases?per_page=20"
 
@@ -360,6 +360,14 @@ validate_source_tree() {
         || die "General Apply form id is missing."
     grep -Fq 'if ($("#grid-instances").length) {' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" \
         || die "Clients UIBootgrid initialization must be guarded when the grid is absent."
+    grep -Fq 'public function metricsAction()' "$PLUGIN_DIR/mvc/app/controllers/OPNsense/Xray/Api/ServiceController.php" \
+        || die "Prometheus metrics endpoint is missing."
+    grep -Fq 'text/plain; version=0.0.4' "$PLUGIN_DIR/mvc/app/controllers/OPNsense/Xray/Api/ServiceController.php" \
+        || die "Prometheus metrics content type is missing."
+    grep -Fq '<acl_xray_metrics>' "$PLUGIN_DIR/mvc/app/models/OPNsense/Xray/ACL/ACL.xml" \
+        || die "Prometheus metrics ACL is missing."
+    grep -Fq '<name>Xray: Prometheus metrics</name>' "$PLUGIN_DIR/mvc/app/models/OPNsense/Xray/ACL/ACL.xml" \
+        || die "Prometheus metrics ACL name is missing."
     _grid_guard_line=$(grep -nF 'if ($("#grid-instances").length) {' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" | head -1 | cut -d: -f1)
     _grid_init_line=$(grep -nF '$("#grid-instances").UIBootgrid({' "$PLUGIN_DIR/mvc/app/views/OPNsense/Xray/partials/scripts.volt" | head -1 | cut -d: -f1)
     [ -n "$_grid_guard_line" ] && [ -n "$_grid_init_line" ] && [ "$_grid_guard_line" -lt "$_grid_init_line" ] \
@@ -961,6 +969,7 @@ rollback_install() {
         return 1
     fi
     rm -f /var/lib/php/tmp/opnsense_menu_cache.xml 2>/dev/null || true
+    rm -f /var/lib/php/tmp/opnsense_acl_cache.json 2>/dev/null || true
     service configd restart >/dev/null 2>&1 || {
         warn "Rollback restored files but configd restart failed."
         return 1
@@ -1217,6 +1226,7 @@ install_plugin_files() {
     rm -f /var/run/xray.lock.d/owner 2>/dev/null || true
     rmdir /var/run/xray.lock.d 2>/dev/null || true
     rm -f /var/lib/php/tmp/opnsense_menu_cache.xml 2>/dev/null || true
+    rm -f /var/lib/php/tmp/opnsense_acl_cache.json 2>/dev/null || true
 }
 
 verify_plugin_install() {
@@ -1349,6 +1359,7 @@ uninstall_plugin() {
         warn "configd restart failed; restart configd manually."
     fi
     rm -f /var/lib/php/tmp/opnsense_menu_cache.xml 2>/dev/null || true
+    rm -f /var/lib/php/tmp/opnsense_acl_cache.json 2>/dev/null || true
 
     echo ""
     echo "==========================================="
@@ -1380,8 +1391,8 @@ check_saved_config_compatibility
 CURRENT_VERSION="not installed"
 [ ! -f "$VERSION_FILE" ] || CURRENT_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
 if [ "$CURRENT_VERSION" != "not installed" ] && [ "$CURRENT_VERSION" != "$PLUGIN_VERSION" ]; then
-    if ! { [ "$CURRENT_VERSION" = "1.0.1" ] && [ "$PLUGIN_VERSION" = "1.1.0" ]; }; then
-        die "$PLUGIN_VERSION has no supported in-place migration from installed plugin version $CURRENT_VERSION. Upgrade to 1.0.1 first or uninstall that version."
+    if ! { [ "$CURRENT_VERSION" = "1.1.0" ] && [ "$PLUGIN_VERSION" = "1.2.0" ]; }; then
+        die "$PLUGIN_VERSION has no supported in-place migration from installed plugin version $CURRENT_VERSION. Upgrade to 1.1.0 first or uninstall that version."
     fi
 fi
 

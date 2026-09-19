@@ -20,17 +20,18 @@ HevSocks5Tunnel
 
 > This is a third-party community plugin. It is not an official OPNsense, Xray-core or HevSocks5Tunnel component.
 
-## What's new in 1.1.0
+## What's new in 1.2.0
 
-Version **1.1.0** rolls the Gateway Group improvements from 1.0.1 together with a broad UI/UX and lifecycle refresh.
+Version **1.2.0** adds native read-only Prometheus telemetry for Xray while preserving the 1.1.x runtime and configuration model.
 
-- **Gateway Health Sync** uses a static synthetic **Far Gateway** derived from each HEV-owned TUN `/32`, so Xray clients can participate in normal OPNsense Gateway Groups and PF `round-robin` pools.
-- **Dynamic Gateway Policy remains disabled** for Xray TUN interfaces; the existing end-to-end proxy health probe is the source of truth and drives the native gateway **Force Down** state after the three-failure debounce.
-- Matching user-created Far Gateways are adopted without taking permanent ownership, while gateways created solely by the plugin are cleaned up when synchronization is released. Legacy 1.0.0 plugin-owned dynamic gateways are migrated to the Far Gateway model.
-- General and Clients now use the standard OPNsense **Apply** workflow with compact, state-aware row actions and clearer configuration help.
-- Apply is differential: unchanged healthy clients remain untouched, changed or unhealthy clients restart individually, new enabled clients start, disabled clients stop, and an explicit manual Stop remains preserved.
+- Added `GET /api/xray/service/metrics` using the Prometheus text exposition format.
+- Exposes service/client state, Xray core, SOCKS5, HEV and TUN readiness, cached end-to-end health, latency/failure timestamps, watchdog state and Gateway Health Sync state.
+- Scraping is passive: the endpoint reads existing runtime and health-cache state and never runs `testconnect` or otherwise initiates a network probe.
+- Added a dedicated **Xray: Prometheus metrics** ACL privilege for monitoring-only API users.
+- Metric labels are intentionally limited to configured client name and interface; server addresses, VLESS UUIDs, REALITY material, health targets and internal instance UUIDs are not exported.
+- Runtime inventory failures are exported explicitly so a successful HTTP scrape cannot hide an unavailable backend inventory.
 
-Existing 1.0.1 clients, TUN assignments, gateways, health state and policy-routing configuration are preserved.
+Existing 1.1.0 clients, TUN assignments, gateways, health state and policy-routing configuration are preserved.
 
 ## Features
 
@@ -90,7 +91,7 @@ After installation refresh the OPNsense GUI and open:
 
 ### Reinstall / future upgrades
 
-Running `install.sh` again on an installed **1.1.0** performs a guarded reinstall while preserving configuration and restoring previously running instances. An in-place upgrade from **1.0.1 → 1.1.0** is supported.
+Running `install.sh` again on an installed **1.2.0** performs a guarded reinstall while preserving configuration and restoring previously running instances. An in-place upgrade from **1.1.0 → 1.2.0** is supported.
 
 ### Uninstall
 
@@ -179,6 +180,33 @@ Enable it only after the client's TUN is assigned and enabled under **Interfaces
 - stale ownership records are reconciled on later lifecycle operations.
 
 This mechanism is separate from `dpinger`: native monitoring stays disabled for synchronized Xray Far Gateways because the Xray end-to-end probe is their health source, while ordinary gateways continue to use normal OPNsense monitoring.
+
+## Prometheus metrics
+
+The plugin exposes a read-only Prometheus text endpoint at:
+
+```text
+GET /api/xray/service/metrics
+```
+
+The endpoint exports service state, per-client Xray/SOCKS5/HEV/TUN runtime, cached end-to-end health, watchdog and Gateway Health Sync state. Scraping reads the existing status and health cache only; it does not run `testconnect` or another active network probe and does not mutate runtime state.
+
+A dedicated **Xray: Prometheus metrics** ACL privilege can be assigned to a monitoring-only API user without granting service-control access. Labels intentionally contain only the configured client name and TUN interface; server addresses, VLESS UUIDs, REALITY material and internal instance UUIDs are not exported.
+
+Example Prometheus job:
+
+```yaml
+- job_name: opnsense-xray
+  scheme: https
+  metrics_path: /api/xray/service/metrics
+  basic_auth:
+    username: API_KEY
+    password: API_SECRET
+  static_configs:
+    - targets: ['opnsense.example.internal']
+```
+
+The health scheduler runs once per minute, so a 30-60 second scrape interval is normally sufficient.
 
 ## Logs
 
