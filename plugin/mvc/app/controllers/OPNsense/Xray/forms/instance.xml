@@ -27,8 +27,8 @@
   <field><id>instance.security</id><label>Security</label><type>dropdown</type><help>Transport security mode. This plugin release supports VLESS with REALITY.</help></field>
   <field><id>instance.reality_sni</id><label>SNI</label><type>text</type><help>REALITY serverName/SNI from the remote server profile. It is required and must match a name accepted by the server.</help></field>
   <field><id>instance.reality_public_key</id><label>Public Key</label><type>text</type><help>REALITY public key of the remote server. Copy it exactly from the server configuration or VLESS link.</help></field>
-  <field><id>instance.reality_short_id</id><label>Short ID</label><type>text</type><hint>0-16 hexadecimal characters</hint></field>
-  <field><id>instance.reality_spider_x</id><label>SpiderX</label><type>text</type><hint>optional, e.g. /</hint></field>
+  <field><id>instance.reality_short_id</id><label>Short ID</label><type>text</type><hint>0-16 hexadecimal characters</hint><help>Optional REALITY shortId. If the server defines one, copy the same hexadecimal value here; otherwise leave it empty.</help></field>
+  <field><id>instance.reality_spider_x</id><label>SpiderX</label><type>text</type><hint>optional, e.g. /</hint><help>Optional REALITY spiderX path. Use the value from the server profile or VLESS link; leave it empty when the server does not specify one.</help></field>
   <field><id>instance.fingerprint</id><label>Fingerprint</label><type>dropdown</type><help>uTLS client fingerprint presented by REALITY. Use the value expected by the server profile; chrome is a common default.</help></field>
   <field><id>instance.socks5_listen</id><label>SOCKS5 Listen Address</label><type>text</type><help>Internal loopback listener between HEV and Xray.</help></field>
   <field><id>instance.socks5_port</id><label>SOCKS5 Port</label><type>text</type><help>Local loopback port used only between HEV and this Xray instance. It must be unique across Xray clients; new clients receive the next free port automatically.</help></field>
