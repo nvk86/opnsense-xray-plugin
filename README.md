@@ -22,12 +22,15 @@ HevSocks5Tunnel
 
 ## What's new in 1.1.0
 
-Version **1.1.0** focuses on UI consistency and safer everyday configuration changes.
+Version **1.1.0** rolls the Gateway Group improvements from 1.0.1 together with a broad UI/UX and lifecycle refresh.
 
-- General and Clients now use the same standard **Apply** workflow.
-- Client row actions use the same compact action style as the AmneziaWG plugin.
-- Apply now reconciles only what changed: unchanged healthy clients stay running, changed or unhealthy clients restart individually, new clients start, disabled clients stop, and a manual Stop remains preserved.
-- Configuration fields now include clear help text throughout the client editor and General settings.
+- **Gateway Health Sync** uses a static synthetic **Far Gateway** derived from each HEV-owned TUN `/32`, so Xray clients can participate in normal OPNsense Gateway Groups and PF `round-robin` pools.
+- **Dynamic Gateway Policy remains disabled** for Xray TUN interfaces; the existing end-to-end proxy health probe is the source of truth and drives the native gateway **Force Down** state after the three-failure debounce.
+- Matching user-created Far Gateways are adopted without taking permanent ownership, while gateways created solely by the plugin are cleaned up when synchronization is released. Legacy 1.0.0 plugin-owned dynamic gateways are migrated to the Far Gateway model.
+- General and Clients now use the standard OPNsense **Apply** workflow with compact, state-aware row actions and clearer configuration help.
+- Apply is differential: unchanged healthy clients remain untouched, changed or unhealthy clients restart individually, new enabled clients start, disabled clients stop, and an explicit manual Stop remains preserved.
+
+Existing 1.0.1 clients, TUN assignments, gateways, health state and policy-routing configuration are preserved.
 
 ## Features
 
