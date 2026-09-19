@@ -180,6 +180,33 @@ Enable it only after the client's TUN is assigned and enabled under **Interfaces
 
 This mechanism is separate from `dpinger`: native monitoring stays disabled for synchronized Xray Far Gateways because the Xray end-to-end probe is their health source, while ordinary gateways continue to use normal OPNsense monitoring.
 
+## Prometheus metrics
+
+The plugin exposes a read-only Prometheus text endpoint at:
+
+```text
+GET /api/xray/service/metrics
+```
+
+The endpoint exports service state, per-client Xray/SOCKS5/HEV/TUN runtime, cached end-to-end health, watchdog and Gateway Health Sync state. Scraping reads the existing status and health cache only; it does not run `testconnect` or another active network probe and does not mutate runtime state.
+
+A dedicated **Xray: Prometheus metrics** ACL privilege can be assigned to a monitoring-only API user without granting service-control access. Labels intentionally contain only the configured client name and TUN interface; server addresses, VLESS UUIDs, REALITY material and internal instance UUIDs are not exported.
+
+Example Prometheus job:
+
+```yaml
+- job_name: opnsense-xray
+  scheme: https
+  metrics_path: /api/xray/service/metrics
+  basic_auth:
+    username: API_KEY
+    password: API_SECRET
+  static_configs:
+    - targets: ['opnsense.example.internal']
+```
+
+The health scheduler runs once per minute, so a 30-60 second scrape interval is normally sufficient.
+
 ## Logs
 
 Important files include:
