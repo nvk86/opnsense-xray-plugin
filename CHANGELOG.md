@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 — 2026-09-19
+
+- Added native read-only Prometheus exposition at `/api/xray/service/metrics`.
+- Added service/client, Xray core, SOCKS5, HEV, TUN, cached health, watchdog, Gateway Health Sync, latency/failure timestamp and stream-check metrics.
+- Prometheus scrapes are passive and never run `testconnect` or otherwise initiate a network probe.
+- Added a dedicated monitoring ACL privilege and corrected the ACL metadata to the OPNsense `<name>` format.
+- Installer now invalidates the OPNsense ACL cache after install, rollback and uninstall.
+- Metric labels avoid server addresses, VLESS UUIDs, REALITY material, health targets and internal instance UUIDs.
+- Added supported in-place installer migration from 1.1.0 to 1.2.0.
+
 ## 1.0.1 — 2026-09-19
 
 Gateway Group compatibility and Far Gateway health synchronization.
