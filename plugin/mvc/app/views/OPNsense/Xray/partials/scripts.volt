@@ -72,7 +72,7 @@
                 var running = info.xray_core === 'running'
                            || info.hev === 'running'
                            || info.tun === 'running';
-                var enabled = info.effective_enabled === true || info.instance_enabled === true;
+                var enabled = info.effective_enabled === true;
 
                 $('#grid-instances .cmd-inst-start[data-row-id="' + uuid + '"]')
                     .toggle(enabled && !running);
