@@ -1,5 +1,5 @@
 #!/bin/sh
-# opnsense-xray-plugin 1.0.0 installer for OPNsense / FreeBSD 15+
+# opnsense-xray-plugin 1.0.1 installer for OPNsense / FreeBSD 15+
 #
 # Xray-core and HevSocks5Tunnel are installed as plugin-owned upstream
 # binaries under /usr/local/libexec/xray. The installer never enables a
@@ -19,7 +19,7 @@
 
 set -eu
 
-PLUGIN_VERSION="1.0.0"
+PLUGIN_VERSION="1.0.1"
 XRAY_RELEASES_API="https://api.github.com/repos/XTLS/Xray-core/releases?per_page=20"
 HEV_RELEASES_API="https://api.github.com/repos/heiher/hev-socks5-tunnel/releases?per_page=20"
 
@@ -392,6 +392,10 @@ validate_source_tree() {
         || die "Gateway health synchronization model field is missing."
     grep -Fq 'force_down' "$PLUGIN_DIR/scripts/Xray/xray-gateway-sync.php" \
         || die "Native gateway Force Down bridge is missing."
+    grep -Fq "gs_synthetic_gateway_for_instance" "$PLUGIN_DIR/scripts/Xray/xray-gateway-sync.php" \
+        || die "Synthetic Far Gateway derivation is missing."
+    grep -Fq "'fargw'=>'1'" "$PLUGIN_DIR/scripts/Xray/xray-gateway-sync.php" \
+        || die "Static Far Gateway creation is missing."
     grep -Fq 'rc.routing_configure alarm' "$PLUGIN_DIR/scripts/Xray/xray-gateway-sync.php" \
         || die "Native gateway routing alarm integration is missing."
     grep -Fq 'gateway-health-sync.json' "$PLUGIN_DIR/scripts/Xray/xray-gateway-sync.php" \
@@ -1377,7 +1381,9 @@ check_saved_config_compatibility
 CURRENT_VERSION="not installed"
 [ ! -f "$VERSION_FILE" ] || CURRENT_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
 if [ "$CURRENT_VERSION" != "not installed" ] && [ "$CURRENT_VERSION" != "$PLUGIN_VERSION" ]; then
-    die "$PLUGIN_VERSION has no supported in-place migration from installed plugin version $CURRENT_VERSION. Uninstall that version first."
+    if ! { [ "$CURRENT_VERSION" = "1.0.0" ] && [ "$PLUGIN_VERSION" = "1.0.1" ]; }; then
+        die "$PLUGIN_VERSION has no supported in-place migration from installed plugin version $CURRENT_VERSION. Uninstall that version first."
+    fi
 fi
 
 STATE_DIR=$(mktemp -d /tmp/xray-state.XXXXXX) || die "mktemp failed"
@@ -1465,8 +1471,8 @@ echo ""
 echo "Next steps:"
 echo "  1. Open VPN -> Xray -> Clients and add/import one client (tun0 + unique /32 + unique SOCKS5 port)."
 echo "  2. Save on General; enabled clients are synchronized immediately (Xray SOCKS5, then HEV TUN)."
-echo "  3. Assign tunN and configure OPNsense policy-routing explicitly; Gateway Health Sync may reconcile the native dynamic gateway only when that opt-in feature is enabled."
+echo "  3. Assign tunN, keep interface IP configuration at None and Dynamic Gateway Policy disabled; Gateway Health Sync can create/adopt a static Far Gateway for policy routing."
 echo "  4. Verify Diagnostics health status and enable Watchdog if automatic recovery is desired."
 echo ""
-echo "Do not create a fake next-hop gateway and do not route the router default route through tun0."
+echo "For Gateway Groups, use the static Far Gateway created/adopted by Gateway Health Sync; do not route the router default route through tun0."
 echo "Refresh the GUI (Ctrl+F5) if the Xray menu is not visible immediately."
