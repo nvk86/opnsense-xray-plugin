@@ -35,6 +35,6 @@
   <field><id>instance.tun_interface</id><label>TUN Interface</label><type>text</type></field>
   <field><id>instance.tun_address</id><label>TUN Address</label><type>text</type></field>
   <field><id>instance.mtu</id><label>MTU</label><type>text</type></field>
-  <field><id>instance.gateway_health_sync</id><label>Gateway Health Sync</label><type>checkbox</type><help>Mirror end-to-end Xray proxy health into the native OPNsense dynamic gateway Force Down state so Gateway Groups can fail over. Requires this TUN to be assigned and Dynamic Gateway Policy enabled.</help></field>
+  <field><id>instance.gateway_health_sync</id><label>Gateway Health Sync</label><type>checkbox</type><help>Mirror end-to-end Xray proxy health into a native OPNsense static Far Gateway Force Down state so Gateway Groups can fail over. Assign and enable this TUN, keep IPv4/IPv6 configuration at None, and keep Dynamic Gateway Policy disabled. The plugin creates or adopts the synthetic Far Gateway automatically.</help></field>
   <field><id>instance.loglevel</id><label>Xray Log Level</label><type>dropdown</type></field>
 </form>
