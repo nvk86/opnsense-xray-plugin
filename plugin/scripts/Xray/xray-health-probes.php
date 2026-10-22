@@ -9,6 +9,7 @@
  */
 const HEALTH_STREAM_BYTES = 16384;
 const HEALTH_STREAM_TIMEOUT = 8;
+const HEALTH_STREAM_MAX_FILESIZE = 262144;
 
 function xray_health_targets(): array
 {
@@ -35,7 +36,11 @@ function xray_health_probe_https(string $socksHost, int $socksPort, ?callable $r
     foreach (xray_health_targets() as $target) {
         $url = $target['url'];
         $socks = $socksHost . ':' . $socksPort;
-        $cmd = '/usr/local/bin/curl -4 -sS --connect-timeout 3 --max-time ' . HEALTH_STREAM_TIMEOUT
+        // A range limits traffic on supporting servers (Mozilla returns 206).
+        // Wikipedia can ignore Range and respond 200 with the full page;
+        // cap that response at 256 KiB rather than requiring HTTP 206.
+        $cmd = '/usr/local/bin/curl -q -4 -sS --connect-timeout 3 --max-time ' . HEALTH_STREAM_TIMEOUT
+            . ' --range 0-16383 --max-filesize ' . HEALTH_STREAM_MAX_FILESIZE
             . ' --socks5-hostname ' . escapeshellarg($socks)
             . ' -o /dev/null -w ' . escapeshellarg('XRAY_HEALTH:%{http_code}|%{size_download}|%{time_total}')
             . ' ' . escapeshellarg($url) . ' 2>/dev/null';
@@ -51,7 +56,7 @@ function xray_health_probe_https(string $socksHost, int $socksPort, ?callable $r
             $bytes = (int)$m[2];
             $seconds = (float)$m[3];
         }
-        $ok = $rc === 0 && $http >= 200 && $http < 400 && $bytes >= HEALTH_STREAM_BYTES;
+        $ok = $rc === 0 && in_array($http, [200, 206], true) && $bytes >= HEALTH_STREAM_BYTES;
         $results[] = [
             'name' => $target['name'],
             'ok' => $ok,
