@@ -46,6 +46,7 @@ jobs:
           grep -Fq 'releaseGatewayHealthOwnership' plugin/mvc/app/controllers/OPNsense/Xray/Api/InstanceController.php
           grep -Fq "elseif (\$failures >= 3)" plugin/scripts/Xray/xray-health.php
           grep -Fq -- "--probe-only" plugin/scripts/Xray/xray-testconnect.php
+          grep -Fq 'if (!$probeOnly)' plugin/scripts/Xray/xray-health.php
           grep -Fq -- "failure_kind" plugin/scripts/Xray/xray-watchdog.php
           grep -Fq "\$healthState === 'unknown' || \$healthState === 'stale'" plugin/scripts/Xray/xray-gateway-sync.php
           grep -Fq 'gs_synthetic_gateway_for_instance' plugin/scripts/Xray/xray-gateway-sync.php
