@@ -115,11 +115,16 @@ if (!valid_uuid($uuid)) {
     output(['result' => 'failed', 'message' => 'Invalid instance UUID'], 1);
 }
 
-// One active health producer per UUID. A second invocation never increments
-// failures or races against a gateway Force Down/UP change.
-$lock = @fopen('/var/run/xray-health-' . $uuid . '.lock', 'c');
-if ($lock === false || !@flock($lock, LOCK_EX | LOCK_NB)) {
-    output(['result' => 'busy', 'message' => 'Health probe already running', 'online' => null], 0);
+// Only production health producers share the per-UUID lock. Manual Test is
+// strictly read-only and can run alongside the watchdog without being skipped.
+// One active production probe prevents concurrent cache writes and gateway
+// Force Down/UP races.
+$lock = null;
+if (!$probeOnly) {
+    $lock = @fopen('/var/run/xray-health-' . $uuid . '.lock', 'c');
+    if ($lock === false || !@flock($lock, LOCK_EX | LOCK_NB)) {
+        output(['result' => 'busy', 'message' => 'Health probe already running', 'online' => null], 0);
+    }
 }
 
 $cfg = OPNsense\Core\Config::getInstance()->object();
