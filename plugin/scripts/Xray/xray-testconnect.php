@@ -42,7 +42,8 @@ if(!$required){
 }
 $healthScript='/usr/local/opnsense/scripts/Xray/xray-health.php';
 $healthOut=[];$healthRc=1;
-exec('/usr/local/bin/php '.escapeshellarg($healthScript).' '.escapeshellarg($uuid).' 2>/dev/null',$healthOut,$healthRc);
+// GUI/manual Test is read-only: never mutate health counters or native gateway state.
+exec('/usr/local/bin/php '.escapeshellarg($healthScript).' '.escapeshellarg($uuid).' --probe-only 2>/dev/null',$healthOut,$healthRc);
 $health=json_decode(implode("\n",$healthOut),true);
 if(!is_array($health)){
     output(['result'=>'failed','message'=>'Runtime OK, but connectivity probe returned no valid result','checks'=>$checks,'server'=>$server,'port'=>$port,'online'=>false]);
