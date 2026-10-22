@@ -30,9 +30,11 @@ jobs:
           PY
       - name: Import parser regression
         run: php tests/import_parser_test.php
+      - name: Health probe regression
+        run: php tests/health_probe_test.php
       - name: Release integrity
         run: |
-          test "$(cat VERSION)" = "1.2.0"
+          test "$(cat VERSION)" = "1.2.1"
           ! grep -RniE --exclude-dir=.git --exclude='ci.yml' \
             '1\.1\.0-(rc|beta)|1\.1\.1-dev|0\.2\.[0-9]+|TESTING\.ru|preserved lab configuration' .
           ! grep -RniE 'ws_path|ws_host|httpupgrade_path|httpupgrade_host' plugin
@@ -43,6 +45,8 @@ jobs:
           grep -Fq "if (\$arg1 === 'release')" plugin/scripts/Xray/xray-gateway-sync.php
           grep -Fq 'releaseGatewayHealthOwnership' plugin/mvc/app/controllers/OPNsense/Xray/Api/InstanceController.php
           grep -Fq "elseif (\$failures >= 3)" plugin/scripts/Xray/xray-health.php
+          grep -Fq -- "--probe-only" plugin/scripts/Xray/xray-testconnect.php
+          grep -Fq -- "failure_kind" plugin/scripts/Xray/xray-watchdog.php
           grep -Fq "\$healthState === 'unknown' || \$healthState === 'stale'" plugin/scripts/Xray/xray-gateway-sync.php
           grep -Fq 'gs_synthetic_gateway_for_instance' plugin/scripts/Xray/xray-gateway-sync.php
           grep -Fq "'fargw'=>'1'" plugin/scripts/Xray/xray-gateway-sync.php
