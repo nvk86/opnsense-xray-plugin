@@ -20,6 +20,19 @@ HevSocks5Tunnel
 
 > This is a third-party community plugin. It is not an official OPNsense, Xray-core or HevSocks5Tunnel component.
 
+## What's new in 1.2.1
+
+Version **1.2.1** fixes false-negative Xray health results and unnecessary restarts observed when external check hosts intermittently time out, despite real HTTPS traffic still passing through the SOCKS5 proxy.
+
+- Probe three independent HTTPS destinations with a streamed payload (at least 16 KiB). A successful response from any one destination confirms reachability; no single external site is a mandatory prerequisite.
+- Explicitly isolate manual **Test** from the production health cache and native Gateway Health Sync. The Test result is diagnostic only.
+- Serialize active health probes per client UUID. Concurrent checks return `busy` without incrementing failure counters.
+- Retain three-failure Gateway Health Sync debounce: a gateway is forced down only after all HTTPS probe targets fail repeatedly. Successful probes clear Force Down through the existing gateway sync implementation.
+- Watchdog restarts Xray+HEV only for confirmed **local runtime failures**, not network-target timeouts. The 10-minute restart cooldown remains in place.
+- Preserve all client settings, generated tunnel assignments, gateway groups and native PF policy routing. The VLESS/REALITY and HEV config generators are unchanged.
+
+**Upgrade path:** installed 1.2.0 → 1.2.1 via `sh install.sh`. Test on a non-production router or controlled maintenance window before applying to critical VPN pools.
+
 ## What's new in 1.2.0
 
 Version **1.2.0** rolls the Gateway Group improvements from 1.0.1 together with the UI/UX and selective Apply work from 1.1.0, and adds native read-only Prometheus telemetry.
@@ -96,7 +109,7 @@ After installation refresh the OPNsense GUI and open:
 
 ### Reinstall / future upgrades
 
-Running `install.sh` again on an installed **1.2.0** performs a guarded reinstall while preserving configuration and restoring previously running instances. An in-place upgrade from **1.1.0 → 1.2.0** is supported.
+Running `install.sh` again on installed **1.2.1** performs a guarded reinstall while preserving configuration and restoring previously running instances. An in-place upgrade from **1.2.0 → 1.2.1** is supported. Other older versions must be upgraded through their supported migration path first.
 
 ### Uninstall
 
@@ -171,7 +184,7 @@ If you use AmneziaWG on OPNsense, see the companion community project [nvk86/opn
 
 An existing process and TUN do not prove that the remote proxy is usable. The plugin therefore performs an end-to-end health check through each client's loopback SOCKS5 listener and Xray outbound path.
 
-Diagnostics separates local runtime state from proxy connectivity and reports the last health result, latency and consecutive failures. When the watchdog is enabled, it restarts a client only after three consecutive failed health checks and enforces a ten-minute restart cooldown. A restart skipped because another lifecycle operation holds the lock does not consume the cooldown.
+Diagnostics separates local runtime state from proxy connectivity and reports the last health result, latency and consecutive failures. Version 1.2.1 confirms connectivity by streaming at least 16 KiB over HTTPS through SOCKS5 from any of three independent hosts. The three-failure debounce still controls native Gateway Health Sync, but watchdog restarts only for local runtime failures, with a ten-minute cooldown. Manual Test does not modify gateway state or failure counters.
 
 ## Gateway Health Sync
 
