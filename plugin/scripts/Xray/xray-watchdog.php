@@ -79,13 +79,16 @@ foreach ($status as $uuid => $row) {
         continue;
     }
 
-    if (($health['result'] ?? '') === 'ok') continue;
+    if (in_array(($health['result'] ?? ''), ['ok', 'busy'], true)) continue;
 
     $detail = (string)($health['message'] ?? 'connectivity failed');
     $failures = (int)($health['consecutive_failures'] ?? 0);
     wlog("MONITOR [{$name}]: offline ({$detail}), failures={$failures}");
 
-    if (!$autoRestart || $failures < FAILURES_BEFORE_RESTART) continue;
+    // Network probes can time out while the local Xray/SOCKS5/HEV chain
+    // still works. Do not tear down working tunnels on remote-site failures.
+    if (!$autoRestart || $failures < FAILURES_BEFORE_RESTART
+        || ($health['failure_kind'] ?? 'network') !== 'local') continue;
 
     $lastRestart = (int)($health['last_restart'] ?? 0);
     if ($lastRestart > 0 && (time() - $lastRestart) < RESTART_COOLDOWN) {
