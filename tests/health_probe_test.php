@@ -9,13 +9,19 @@ function check(bool $condition, string $message): void {
 }
 
 $targets = xray_health_targets();
-check(count($targets) >= 3, 'at least 3 endpoints required');
+check(count($targets) === 3, 'exactly 3 endpoints required');
+check(
+    array_column($targets, 'name') === ['cloudflare', 'wikipedia', 'mozilla'],
+    'approved independent HTTPS targets in priority order'
+);
 check(count(array_unique(array_map(static fn($t) => parse_url($t['url'], PHP_URL_HOST), $targets))) === count($targets), 'endpoints must have different hosts') ;
 
 // A Cloudflare outage cannot cause a full tunnel outage when Wikipedia works.
 $calls = [];
 $runner = static function (string $cmd, string $url) use (&$calls): array {
     $calls[] = $url;
+    check(str_contains($cmd, '--range 0-16383'), 'bounded byte-range requested');
+    check(str_contains($cmd, '--max-filesize 262144'), 'cap fallback full-body downloads');
     if (str_contains($url, 'cloudflare.com')) return [28, 'XRAY_HEALTH:000|0|8.000'];
     return [0, 'XRAY_HEALTH:200|122421|0.420'];
 };
@@ -30,6 +36,14 @@ $small = static fn(string $cmd, string $url): array => [0, 'XRAY_HEALTH:200|500|
 $result = xray_health_probe_https('127.0.0.1', 10809, $small);
 check($result['ok'] === false, 'tiny HTTP 200 is insufficient');
 check(count($result['probe_results']) === count($targets), 'try every independent endpoint before failing');
+
+// A full 16 KiB redirect body must not be accepted as proof of reachability.
+$redirect = static fn(string $cmd, string $url): array => [0, 'XRAY_HEALTH:301|16384|0.050'];
+check(xray_health_probe_https('127.0.0.1', 10809, $redirect)['ok'] === false, 'HTTP 301 must fail');
+
+// Mozilla serves partial content, so 206 with a full 16 KiB must succeed.
+$partial = static fn(string $cmd, string $url): array => [0, 'XRAY_HEALTH:206|16384|0.050'];
+check(xray_health_probe_https('127.0.0.1', 10809, $partial)['ok'] === true, 'HTTP 206 must pass');
 
 // Even an unexpected HTTP 500 with a full body is a failure.
 $serverError = static fn(string $cmd, string $url): array => [0, 'XRAY_HEALTH:500|16384|0.050'];
