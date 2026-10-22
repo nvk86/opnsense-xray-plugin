@@ -32,6 +32,8 @@ jobs:
         run: php tests/import_parser_test.php
       - name: Health probe regression
         run: php tests/health_probe_test.php
+      - name: Health lock inheritance regression
+        run: php tests/health_lock_test.php
       - name: Release integrity
         run: |
           test "$(cat VERSION)" = "1.2.1"
