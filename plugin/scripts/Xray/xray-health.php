@@ -121,7 +121,13 @@ if (!valid_uuid($uuid)) {
 // Force Down/UP races.
 $lock = null;
 if (!$probeOnly) {
-    $lock = @fopen('/var/run/xray-health-' . $uuid . '.lock', 'c');
+    // 1.2.1 initial hotfix used ".lock" with ordinary fopen("c"). When
+    // Gateway Health Sync reconfigured PF, filterlog inherited the descriptor
+    // and kept flock alive after the health process exited. Switch lock
+    // generations to avoid the orphaned inode without touching filterlog.
+    // fopen("ce") sets FD_CLOEXEC and prevents any child exec from inheriting
+    // the new lock through rc.routing_configure or other service helpers.
+    $lock = @fopen('/var/run/xray-health-' . $uuid . '.lock.v2', 'ce');
     if ($lock === false || !@flock($lock, LOCK_EX | LOCK_NB)) {
         output(['result' => 'busy', 'message' => 'Health probe already running', 'online' => null], 0);
     }
