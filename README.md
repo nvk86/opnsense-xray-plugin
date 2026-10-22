@@ -26,7 +26,7 @@ Version **1.2.1** fixes false-negative Xray health results and unnecessary resta
 
 - Probe three independent HTTPS destinations with a streamed payload (at least 16 KiB). A successful response from any one destination confirms reachability; no single external site is a mandatory prerequisite.
 - Explicitly isolate manual **Test** from the production health cache and native Gateway Health Sync. The Test result is diagnostic only.
-- Serialize active health probes per client UUID. Concurrent checks return `busy` without incrementing failure counters.
+- Serialize active health probes per client UUID. Concurrent checks return `busy` without incrementing failure counters. The lock uses `FD_CLOEXEC` so firewall helpers (notably `filterlog`) cannot inherit it and stall future monitoring; the lock filename is rotated once to bypass orphaned 1.2.1 test locks.
 - Retain three-failure Gateway Health Sync debounce: a gateway is forced down only after all HTTPS probe targets fail repeatedly. Successful probes clear Force Down through the existing gateway sync implementation.
 - Watchdog restarts Xray+HEV only for confirmed **local runtime failures**, not network-target timeouts. The 10-minute restart cooldown remains in place.
 - Preserve all client settings, generated tunnel assignments, gateway groups and native PF policy routing. The VLESS/REALITY and HEV config generators are unchanged.
