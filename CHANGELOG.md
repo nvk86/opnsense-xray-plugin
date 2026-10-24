@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.1 — 2026-10-24
+
+- Added resilient HTTPS health checks through SOCKS5 with fallback across three independent endpoints, requiring HTTP 200/206 and at least 16 KiB of response data.
+- Changed watchdog behavior to restart Xray and HEV only after repeated local runtime failures, avoiding disruptive restarts for transient network or destination timeouts.
+- Kept the three-failure native Gateway Health Sync debounce and reset `Force Down` on a successful probe.
+- Isolated manual GUI Test from production health cache, failure counters and native gateway changes.
+- Added per-client nonblocking health-check locking with close-on-exec to prevent inherited locks from OPNsense processes.
+- Added health probe and lock-inheritance regression tests.
+- Added supported in-place installer upgrade from 1.2.0 to 1.2.1.
+
 ## 1.2.0 — 2026-09-19
 
 - Added native read-only Prometheus exposition at `/api/xray/service/metrics`.
