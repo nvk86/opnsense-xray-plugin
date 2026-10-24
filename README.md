@@ -31,7 +31,7 @@ Version **1.2.1** fixes false-negative Xray health results and unnecessary resta
 - Watchdog restarts Xray+HEV only for confirmed **local runtime failures**, not network-target timeouts. The 10-minute restart cooldown remains in place.
 - Preserve all client settings, generated tunnel assignments, gateway groups and native PF policy routing. The VLESS/REALITY and HEV config generators are unchanged.
 
-**Upgrade path:** installed 1.2.0 → 1.2.1 via `sh install.sh`. Test on a non-production router or controlled maintenance window before applying to critical VPN pools.
+**Upgrade path:** installed 1.2.0 → 1.2.1 via `sh install.sh`. **Maintenance window required:** the installer also checks the newest upstream Xray-core and HEV releases, may replace their binaries, and stops/restarts previously running instances even for this plugin-only upgrade. The production hotfix deployed for testing updated PHP scripts only; it was not a full installer test. Test on a non-production router or controlled maintenance window before applying to critical VPN pools.
 
 ## What's new in 1.2.0
 
