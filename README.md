@@ -20,36 +20,31 @@ HevSocks5Tunnel
 
 > This is a third-party community plugin. It is not an official OPNsense, Xray-core or HevSocks5Tunnel component.
 
+## Contents
+
+- **Overview:** [What's new in 1.2.1](#whats-new-in-121) · [Features](#features) · [Supported platform](#supported-platform)
+- **Installation & upgrades:** [Upstream components](#upstream-components-and-release-policy) · [Installation](#installation) · [Reinstall / upgrades](#reinstall--future-upgrades) · [Uninstall](#uninstall)
+- **Client configuration:** [Client setup](#client-configuration) · [VLESS URI import](#vless-uri-import-scope)
+- **Routing & availability:** [OPNsense policy routing](#opnsense-interface-and-policy-routing) · [Gateway Group example](#gateway-group-example-amneziawg--xray) · [Health & watchdog](#health-monitoring-and-watchdog) · [Gateway Health Sync](#gateway-health-sync)
+- **Monitoring & diagnostics:** [Prometheus metrics](#prometheus-metrics) · [Logs](#logs) · [Runtime paths](#runtime-paths)
+- **Project information:** [Code lineage](#code-lineage) · [Security & ownership](#security-and-ownership-boundaries) · [License](#license)
+
 ## What's new in 1.2.1
 
-Version **1.2.1** fixes false-negative Xray health results and unnecessary restarts observed when external check hosts intermittently time out, despite real HTTPS traffic still passing through the SOCKS5 proxy.
+Version **1.2.1** improves health monitoring reliability, prevents unnecessary Xray restarts during temporary network failures, and fixes health-check locking issues.
 
-- **Resilient HTTPS health checks:** Probe three independent HTTPS endpoints sequentially through the client's SOCKS5 proxy. Accept HTTP 200/206 with at least 16 KiB received, request bounded byte ranges where supported, and stop at the first successful endpoint. No individual website is required for gateway availability.
-- Explicitly isolate manual **Test** from the production health cache and native Gateway Health Sync. The Test result is diagnostic only.
-- Serialize active health probes per client UUID. Concurrent checks return `busy` without incrementing failure counters. The lock uses `FD_CLOEXEC` so firewall helpers (notably `filterlog`) cannot inherit it and stall future monitoring; the lock filename is rotated once to bypass orphaned 1.2.1 test locks.
-- Retain three-failure Gateway Health Sync debounce: a gateway is forced down only after all HTTPS probe targets fail repeatedly. Successful probes clear Force Down through the existing gateway sync implementation.
-- Watchdog restarts Xray+HEV only for confirmed **local runtime failures**, not network-target timeouts. The 10-minute restart cooldown remains in place.
-- Preserve all client settings, generated tunnel assignments, gateway groups and native PF policy routing. The VLESS/REALITY and HEV config generators are unchanged.
+- **Resilient HTTPS health checks:** Three independent HTTPS endpoints are checked sequentially through the client's SOCKS5 proxy. An HTTP 200/206 response with at least 16 KiB of data from any endpoint confirms proxy connectivity; no single external website is required.
+- **Safer watchdog behavior:** Xray and HevSocks5Tunnel are restarted only after repeated local runtime failures, not because external HTTPS destinations are temporarily unreachable.
+- **Gateway Health Sync:** Native gateway `Force Down` is applied after three consecutive failed health-check cycles and cleared when connectivity recovers.
+- **Read-only manual Test:** Running a connectivity test from the GUI does not change production health counters, cache or native gateway state.
+- **Reliable health-check locking:** Per-client locking prevents concurrent health checks. Close-on-exec prevents lock inheritance by OPNsense services.
+- **Improved validation:** Additional regression tests cover HTTPS fallback behavior, response validation and health-lock inheritance.
 
-**Upgrade path:** installed 1.2.0 → 1.2.1 via `sh install.sh`. **Maintenance window required:** the installer also checks the newest upstream Xray-core and HEV releases, may replace their binaries, and stops/restarts previously running instances even for this plugin-only upgrade. The production hotfix deployed for testing updated PHP scripts only; it was not a full installer test. Test on a non-production router or controlled maintenance window before applying to critical VPN pools.
+A successful SOCKS5 health check confirms HTTPS connectivity through Xray, but does not independently verify the complete PF → TUN → HEV forwarding path.
 
-## What's new in 1.2.0
+**Upgrade from 1.2.0:** Run `sh install.sh`. The installer preserves existing plugin configuration and restores previously running instances after the upgrade. It also checks for newer Xray-core and HevSocks5Tunnel releases and may update their binaries. Previously running Xray instances are stopped and restarted during installation, briefly interrupting affected connections.
 
-Version **1.2.0** rolls the Gateway Group improvements from 1.0.1 together with the UI/UX and selective Apply work from 1.1.0, and adds native read-only Prometheus telemetry.
-
-- **Gateway Health Sync** uses a static synthetic **Far Gateway** derived from each HEV-owned TUN `/32`, so Xray clients can participate in normal OPNsense Gateway Groups and PF `round-robin` pools.
-- **Dynamic Gateway Policy remains disabled** for Xray TUN interfaces; the existing end-to-end proxy health probe is the source of truth and drives the native gateway **Force Down** state after the three-failure debounce.
-- Matching user-created Far Gateways are adopted without taking permanent ownership, while gateways created solely by the plugin are cleaned up when synchronization is released. Legacy 1.0.0 plugin-owned dynamic gateways are migrated to the Far Gateway model.
-- General and Clients use the standard OPNsense **Apply** workflow with compact, state-aware row actions and clearer configuration help.
-- Apply is differential: unchanged healthy clients remain untouched, changed or unhealthy clients restart individually, new enabled clients start, disabled clients stop, and an explicit manual Stop remains preserved.
-- Added `GET /api/xray/service/metrics` using the Prometheus text exposition format.
-- Prometheus exposes service/client state, Xray core, SOCKS5, HEV and TUN readiness, cached end-to-end health, latency/failure timestamps, watchdog state and Gateway Health Sync state.
-- Scraping is passive: the endpoint reads existing runtime and health-cache state and never runs `testconnect` or otherwise initiates a network probe.
-- Added a dedicated **Xray: Prometheus metrics** ACL privilege for monitoring-only API users.
-- Metric labels are intentionally limited to configured client name and interface; server addresses, VLESS UUIDs, REALITY material, health targets and internal instance UUIDs are not exported.
-- Runtime inventory failures are exported explicitly so a successful HTTP scrape cannot hide an unavailable backend inventory.
-
-Existing 1.1.0 clients, TUN assignments, gateways, health state and policy-routing configuration are preserved.
+No changes to VLESS/REALITY transport configuration are required.
 
 ## Features
 
