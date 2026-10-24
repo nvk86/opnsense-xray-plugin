@@ -27,7 +27,6 @@ HevSocks5Tunnel
 - **Client configuration:** [Client setup](#client-configuration) · [VLESS URI import](#vless-uri-import-scope)
 - **Routing & availability:** [OPNsense policy routing](#opnsense-interface-and-policy-routing) · [Gateway Group example](#gateway-group-example-amneziawg--xray) · [Health & watchdog](#health-monitoring-and-watchdog) · [Gateway Health Sync](#gateway-health-sync)
 - **Monitoring & diagnostics:** [Prometheus metrics](#prometheus-metrics) · [Logs](#logs) · [Runtime paths](#runtime-paths)
-- **Project information:** [Code lineage](#code-lineage) · [Security & ownership](#security-and-ownership-boundaries) · [License](#license)
 
 ## What's new in 1.2.1
 
