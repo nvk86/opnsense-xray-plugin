@@ -4,13 +4,7 @@
 set_include_path('/usr/local/etc/inc' . PATH_SEPARATOR . get_include_path());
 require_once('config.inc');
 
-const HEALTH_HOST = 'cp.cloudflare.com';
-const HEALTH_PORT = 80;
-const HEALTH_PATH = '/generate_204';
-const HEALTH_TIMEOUT = 3.0;
-const HEALTH_STREAM_URL = 'https://speed.cloudflare.com/__down?bytes=16384';
-const HEALTH_STREAM_BYTES = 16384;
-const HEALTH_STREAM_TIMEOUT = 8;
+require_once __DIR__ . '/xray-health-probes.php';
 
 function valid_uuid(string $uuid): bool
 {
@@ -51,19 +45,6 @@ function write_cache(string $uuid, array $data): void
     }
 }
 
-function read_exact($fp, int $len): string|false
-{
-    $buf = '';
-    while (strlen($buf) < $len) {
-        $chunk = fread($fp, $len - strlen($buf));
-        if ($chunk === false || $chunk === '') {
-            return false;
-        }
-        $buf .= $chunk;
-    }
-    return $buf;
-}
-
 function tracked_pid(string $uuid, string $kind): int
 {
     $hev = $kind === 'hev';
@@ -81,6 +62,7 @@ function tracked_pid(string $uuid, string $kind): int
 
 function update_state(string $uuid, bool $online, string $message, ?int $latencyMs, ?int $httpStatus, array $extra = []): array
 {
+    global $probeOnly;
     $old = read_cache($uuid);
     $now = time();
     $failures = $online ? 0 : ((int)($old['consecutive_failures'] ?? 0) + 1);
@@ -90,7 +72,8 @@ function update_state(string $uuid, bool $online, string $message, ?int $latency
         'message' => $message,
         'latency_ms' => $latencyMs,
         'http_status' => $httpStatus,
-        'target' => HEALTH_HOST . ':' . HEALTH_PORT,
+        'target' => (string)($extra['target'] ?? 'multiple:https'),
+        'failure_kind' => $online ? 'none' : 'network',
         'checked_at' => $now,
         'checked_at_iso' => date('c', $now),
         'consecutive_failures' => $failures,
@@ -98,6 +81,11 @@ function update_state(string $uuid, bool $online, string $message, ?int $latency
         'last_failure' => $online ? ($old['last_failure'] ?? null) : $now,
         'last_restart' => $old['last_restart'] ?? null,
     ], $extra);
+    // Manual Test must not modify counters, gateway Force Down or PF routing.
+    if ($probeOnly) {
+        $state['probe_only'] = true;
+        return $state;
+    }
     write_cache($uuid, $state);
 
     // Native gateway integration is deliberately best-effort: health results
@@ -122,8 +110,27 @@ function update_state(string $uuid, bool $online, string $message, ?int $latency
 }
 
 $uuid = isset($argv[1]) ? trim((string)$argv[1]) : '';
+$probeOnly = ($argv[2] ?? '') === '--probe-only';
 if (!valid_uuid($uuid)) {
     output(['result' => 'failed', 'message' => 'Invalid instance UUID'], 1);
+}
+
+// Only production health producers share the per-UUID lock. Manual Test is
+// strictly read-only and can run alongside the watchdog without being skipped.
+// One active production probe prevents concurrent cache writes and gateway
+// Force Down/UP races.
+$lock = null;
+if (!$probeOnly) {
+    // 1.2.1 initial hotfix used ".lock" with ordinary fopen("c"). When
+    // Gateway Health Sync reconfigured PF, filterlog inherited the descriptor
+    // and kept flock alive after the health process exited. Switch lock
+    // generations to avoid the orphaned inode without touching filterlog.
+    // fopen("ce") sets FD_CLOEXEC and prevents any child exec from inheriting
+    // the new lock through rc.routing_configure or other service helpers.
+    $lock = @fopen('/var/run/xray-health-' . $uuid . '.lock.v2', 'ce');
+    if ($lock === false || !@flock($lock, LOCK_EX | LOCK_NB)) {
+        output(['result' => 'busy', 'message' => 'Health probe already running', 'online' => null], 0);
+    }
 }
 
 $cfg = OPNsense\Core\Config::getInstance()->object();
@@ -163,7 +170,7 @@ if ($runtimeRc !== 0 || !is_array($runtime) || ($runtime['status'] ?? '') !== 'o
         if (($runtime['tun'] ?? '') !== 'running') $parts[] = 'TUN';
     }
     $message = 'Runtime incomplete' . ($parts ? ': ' . implode(', ', array_unique($parts)) : '');
-    $state = update_state($uuid, false, $message, null, null);
+    $state = update_state($uuid, false, $message, null, null, ['failure_kind' => 'local']);
     output(['result' => 'failed'] + $state, 0);
 }
 
@@ -171,119 +178,27 @@ $socksHost = trim((string)($inst->socks5_listen ?? '127.0.0.1'));
 if ($socksHost === '') $socksHost = '127.0.0.1';
 $socksPort = (int)($inst->socks5_port ?? 10808);
 if ($socksPort < 1 || $socksPort > 65535) {
-    $state = update_state($uuid, false, 'Invalid SOCKS5 port', null, null);
+    $state = update_state($uuid, false, 'Invalid SOCKS5 port', null, null, ['failure_kind' => 'local']);
     output(['result' => 'failed'] + $state, 0);
 }
 
-$start = microtime(true);
-$errno = 0;
-$errstr = '';
-$fp = @fsockopen($socksHost, $socksPort, $errno, $errstr, HEALTH_TIMEOUT);
-if ($fp === false) {
-    $state = update_state($uuid, false, 'SOCKS5 unavailable: ' . ($errstr ?: ('errno ' . $errno)), null, null);
-    output(['result' => 'failed'] + $state, 0);
-}
-stream_set_timeout($fp, (int)HEALTH_TIMEOUT, (int)((HEALTH_TIMEOUT - (int)HEALTH_TIMEOUT) * 1000000));
-
-$fail = function (string $message) use ($uuid, $fp): void {
-    @fclose($fp);
-    $state = update_state($uuid, false, $message, null, null);
-    output(['result' => 'failed'] + $state, 0);
-};
-
-if (@fwrite($fp, "\x05\x01\x00") !== 3) {
-    $fail('SOCKS5 greeting write failed');
-}
-$reply = read_exact($fp, 2);
-if ($reply === false || $reply !== "\x05\x00") {
-    $fail('SOCKS5 authentication negotiation failed');
-}
-
-$host = HEALTH_HOST;
-$request = "\x05\x01\x00\x03" . chr(strlen($host)) . $host . pack('n', HEALTH_PORT);
-if (@fwrite($fp, $request) !== strlen($request)) {
-    $fail('SOCKS5 CONNECT write failed');
-}
-$head = read_exact($fp, 4);
-if ($head === false || strlen($head) !== 4 || ord($head[0]) !== 5) {
-    $fail('SOCKS5 CONNECT response missing');
-}
-$rep = ord($head[1]);
-if ($rep !== 0) {
-    $fail('SOCKS5 CONNECT failed (reply ' . $rep . ')');
-}
-$atyp = ord($head[3]);
-if ($atyp === 1) {
-    if (read_exact($fp, 4) === false) $fail('SOCKS5 CONNECT response truncated');
-} elseif ($atyp === 3) {
-    $len = read_exact($fp, 1);
-    if ($len === false || read_exact($fp, ord($len)) === false) $fail('SOCKS5 CONNECT response truncated');
-} elseif ($atyp === 4) {
-    if (read_exact($fp, 16) === false) $fail('SOCKS5 CONNECT response truncated');
-} else {
-    $fail('SOCKS5 CONNECT returned unknown address type');
-}
-if (read_exact($fp, 2) === false) {
-    $fail('SOCKS5 CONNECT response truncated');
-}
-
-$http = "GET " . HEALTH_PATH . " HTTP/1.1\r\nHost: " . HEALTH_HOST . "\r\nUser-Agent: OPNsense-Xray-Health/1.0\r\nConnection: close\r\n\r\n";
-if (@fwrite($fp, $http) !== strlen($http)) {
-    $fail('Health request write failed');
-}
-$statusLine = @fgets($fp, 512);
-$meta = stream_get_meta_data($fp);
-@fclose($fp);
-if ($statusLine === false || $statusLine === '') {
-    $failMsg = !empty($meta['timed_out']) ? 'Health request timed out' : 'Health response missing';
-    $state = update_state($uuid, false, $failMsg, null, null);
-    output(['result' => 'failed'] + $state, 0);
-}
-
-$httpStatus = null;
-if (preg_match('/^HTTP\/\S+\s+(\d{3})\b/', trim($statusLine), $m)) {
-    $httpStatus = (int)$m[1];
-}
-$latencyMs = (int)round((microtime(true) - $start) * 1000);
-if ($httpStatus === null || $httpStatus < 200 || $httpStatus >= 400) {
-    $message = 'Unexpected health response: ' . trim($statusLine);
-    $state = update_state($uuid, false, $message, $latencyMs, $httpStatus);
-    output(['result' => 'failed'] + $state, 0);
-}
-
-// A tiny 204 only proves that the tunnel can establish a short request.
-// Verify a non-trivial response body as well; this catches stateful/DPI paths
-// that accept REALITY but stall after only a few kilobytes.
-$curlOut = [];
-$curlRc = 1;
-$curlTarget = $socksHost . ':' . $socksPort;
-$curlCmd = '/usr/local/bin/curl -4 -sS --connect-timeout 3 --max-time ' . HEALTH_STREAM_TIMEOUT
-    . ' --socks5-hostname ' . escapeshellarg($curlTarget)
-    . ' -o /dev/null -w ' . escapeshellarg('XRAY_HEALTH:%{http_code}|%{size_download}|%{time_total}')
-    . ' ' . escapeshellarg(HEALTH_STREAM_URL) . ' 2>/dev/null';
-exec($curlCmd, $curlOut, $curlRc);
-$curlLine = trim(implode("\n", $curlOut));
-$streamCode = 0; $streamBytes = 0; $streamSeconds = 0.0;
-if (preg_match('/XRAY_HEALTH:(\d{3})\|(\d+)\|([0-9.]+)$/D', $curlLine, $m)) {
-    $streamCode = (int)$m[1];
-    $streamBytes = (int)$m[2];
-    $streamSeconds = (float)$m[3];
-}
-if ($curlRc !== 0 || $streamCode < 200 || $streamCode >= 400 || $streamBytes < HEALTH_STREAM_BYTES) {
-    $detail = $streamBytes . '/' . HEALTH_STREAM_BYTES . ' bytes';
-    if ($streamCode > 0) $detail .= ', HTTP ' . $streamCode;
-    if ($curlRc !== 0) $detail .= ', curl rc ' . $curlRc;
-    $state = update_state($uuid, false, 'Stream health failed (' . $detail . ')', null, $streamCode > 0 ? $streamCode : null, [
-        'stream_bytes' => $streamBytes,
-        'stream_expected_bytes' => HEALTH_STREAM_BYTES,
-    ]);
-    output(['result' => 'failed'] + $state, 0);
-}
-
-$latencyMs = (int)round($streamSeconds * 1000);
-$message = 'Online via proxy (HTTP ' . $streamCode . ', ' . $streamBytes . ' bytes, ' . $latencyMs . ' ms)';
-$state = update_state($uuid, true, $message, $latencyMs, $streamCode, [
-    'stream_bytes' => $streamBytes,
-    'stream_expected_bytes' => HEALTH_STREAM_BYTES,
-]);
-output(['result' => 'ok'] + $state, 0);
+// A successful HTTPS response with a real body from any independent target
+// proves the SOCKS5 -> Xray -> VLESS/REALITY path is usable. Do not make one
+// website's reachability a hard prerequisite for VPN gateway health.
+$probe = xray_health_probe_https($socksHost, $socksPort);
+$details = [
+    'target' => $probe['target'],
+    'stream_bytes' => $probe['stream_bytes'],
+    'stream_expected_bytes' => $probe['stream_expected_bytes'],
+    'probe_results' => $probe['probe_results'],
+    'failure_kind' => $probe['ok'] ? 'none' : 'network',
+];
+$state = update_state(
+    $uuid,
+    $probe['ok'],
+    $probe['message'],
+    $probe['latency_ms'],
+    $probe['http_status'],
+    $details
+);
+output(['result' => $probe['ok'] ? 'ok' : 'failed'] + $state, 0);

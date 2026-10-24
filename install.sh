@@ -1,5 +1,5 @@
 #!/bin/sh
-# opnsense-xray-plugin 1.2.0 installer for OPNsense / FreeBSD 15+
+# opnsense-xray-plugin 1.2.1 installer for OPNsense / FreeBSD 15+
 #
 # Xray-core and HevSocks5Tunnel are installed as plugin-owned upstream
 # binaries under /usr/local/libexec/xray. The installer never enables a
@@ -19,7 +19,7 @@
 
 set -eu
 
-PLUGIN_VERSION="1.2.0"
+PLUGIN_VERSION="1.2.1"
 XRAY_RELEASES_API="https://api.github.com/repos/XTLS/Xray-core/releases?per_page=20"
 HEV_RELEASES_API="https://api.github.com/repos/heiher/hev-socks5-tunnel/releases?per_page=20"
 
@@ -234,6 +234,7 @@ validate_source_tree() {
         "$PLUGIN_DIR/scripts/Xray/xray-service-control.php" \
         "$PLUGIN_DIR/scripts/Xray/xray-watchdog.php" \
         "$PLUGIN_DIR/scripts/Xray/xray-health.php" \
+        "$PLUGIN_DIR/scripts/Xray/xray-health-probes.php" \
         "$PLUGIN_DIR/scripts/Xray/xray-gateway-sync.php" \
         "$PLUGIN_DIR/scripts/Xray/xray-ifstats.php" \
         "$PLUGIN_DIR/scripts/Xray/xray-testconnect.php" \
@@ -380,9 +381,9 @@ validate_source_tree() {
         || die "Broad newsyslog wildcard would double-match watchdog/service logs."
 
     # Monitoring/UI regression guards.
-    grep -Fq "HEALTH_HOST = 'cp.cloudflare.com'" "$PLUGIN_DIR/scripts/Xray/xray-health.php" \
-        || die "End-to-end proxy health probe target is missing."
-    grep -Fq "HEALTH_STREAM_BYTES = 16384" "$PLUGIN_DIR/scripts/Xray/xray-health.php" \
+    grep -Fq "xray_health_probe_https" "$PLUGIN_DIR/scripts/Xray/xray-health.php" \
+        || die "End-to-end multi-target proxy health probe is missing."
+    grep -Fq "HEALTH_STREAM_BYTES = 16384" "$PLUGIN_DIR/scripts/Xray/xray-health-probes.php" \
         || die "Long-stream health integrity probe is missing."
     grep -Fq "FAILURES_BEFORE_RESTART', 3" "$PLUGIN_DIR/scripts/Xray/xray-watchdog.php" \
         || die "Watchdog consecutive-failure guard is missing."
@@ -1391,8 +1392,8 @@ check_saved_config_compatibility
 CURRENT_VERSION="not installed"
 [ ! -f "$VERSION_FILE" ] || CURRENT_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
 if [ "$CURRENT_VERSION" != "not installed" ] && [ "$CURRENT_VERSION" != "$PLUGIN_VERSION" ]; then
-    if ! { [ "$CURRENT_VERSION" = "1.1.0" ] && [ "$PLUGIN_VERSION" = "1.2.0" ]; }; then
-        die "$PLUGIN_VERSION has no supported in-place migration from installed plugin version $CURRENT_VERSION. Upgrade to 1.1.0 first or uninstall that version."
+    if ! { [ "$CURRENT_VERSION" = "1.2.0" ] && [ "$PLUGIN_VERSION" = "1.2.1" ]; }; then
+        die "$PLUGIN_VERSION supports in-place upgrade only from 1.2.0."
     fi
 fi
 
