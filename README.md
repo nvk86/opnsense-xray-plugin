@@ -24,7 +24,7 @@ HevSocks5Tunnel
 
 Version **1.2.1** fixes false-negative Xray health results and unnecessary restarts observed when external check hosts intermittently time out, despite real HTTPS traffic still passing through the SOCKS5 proxy.
 
-- Probe exactly three independent HTTPS destinations in order: Cloudflare Speed (`https://speed.cloudflare.com/__down?bytes=16384`), Wikipedia (`https://www.wikipedia.org/`) and Mozilla (`https://www.mozilla.org/`). Require HTTP 200/206 and at least 16 KiB received. Request Range `0-16383` where supported, cap fallback full pages at 256 KiB, and accept success from any one destination; no single external site is a mandatory prerequisite.
+- **Resilient HTTPS health checks:** Probe three independent HTTPS endpoints sequentially through the client's SOCKS5 proxy. Accept HTTP 200/206 with at least 16 KiB received, request bounded byte ranges where supported, and stop at the first successful endpoint. No individual website is required for gateway availability.
 - Explicitly isolate manual **Test** from the production health cache and native Gateway Health Sync. The Test result is diagnostic only.
 - Serialize active health probes per client UUID. Concurrent checks return `busy` without incrementing failure counters. The lock uses `FD_CLOEXEC` so firewall helpers (notably `filterlog`) cannot inherit it and stall future monitoring; the lock filename is rotated once to bypass orphaned 1.2.1 test locks.
 - Retain three-failure Gateway Health Sync debounce: a gateway is forced down only after all HTTPS probe targets fail repeatedly. Successful probes clear Force Down through the existing gateway sync implementation.
